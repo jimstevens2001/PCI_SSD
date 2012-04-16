@@ -51,21 +51,21 @@ namespace PCISSD
 
 	bool PCI_SSD_System::addTransaction(bool isWrite, uint64_t addr)
 	{
-		return hybridsim->addTransaction(isWrite, addr);
+		Transaction t(isWrite, addr);
+		layer1_send_queue.push_back(t);
+
+		if (DEBUG)
+		{
+			cout << currentClockCycle << " : Added transaction to layer1_send_queue: (" << t.isWrite << ", " << t.addr << ")\n";
+		}
+
+		return true;
 	}
 
 	
 	bool PCI_SSD_System::WillAcceptTransaction()
 	{
 		return true;
-	}
-
-
-	void PCI_SSD_System::update()
-	{
-		hybridsim->update();
-
-		currentClockCycle++;
 	}
 
 
@@ -78,7 +78,7 @@ namespace PCISSD
 
 	void PCI_SSD_System::printLogfile()
 	{
-
+		hybridsim->printLogfile();
 	}
 
 	void PCI_SSD_System::HybridSim_Read_Callback(uint id, uint64_t addr, uint64_t cycle)
@@ -93,5 +93,106 @@ namespace PCISSD
 		if (WriteDone != NULL)
 			(*WriteDone)(systemID, addr, currentClockCycle);
 	}
+
+
+	void PCI_SSD_System::update()
+	{
+		// Do processing for layer 1
+		Process_Layer1();
+
+		// Do processing for event queue
+		Process_Event_Queue();
+
+		// Tell HybridSim to update
+		hybridsim->update();
+
+		// Increment clock cycle counter.
+		currentClockCycle++;
+
+		if (DEBUG)
+		{
+			if (currentClockCycle % 10000 == 0)
+			{
+				cout << currentClockCycle << " : length(event_queue)=" << event_queue.size() << " length(layer1_send_queue)=" << layer1_send_queue.size() << "\n";
+			}
+		}
+	}
+
+
+
+
+	void PCI_SSD_System::Process_Event_Queue()
+	{
+		while ((!event_queue.empty()) && (event_queue.front().expire_time <= currentClockCycle))
+		{
+			TransactionEvent e = event_queue.front();
+			event_queue.pop_front();
+
+			if (e.type == LAYER1_SEND_EVENT)
+			{
+				Process_Layer1_Send_Event(e);
+			}
+		}
+
+	}
+
+	void PCI_SSD_System::Add_Event(TransactionEvent e)
+	{
+		event_queue.push_back(e);
+		event_queue.sort();
+
+	}
+
+
+	void PCI_SSD_System::Process_Layer1()
+	{
+		if (!layer1_busy)
+		{
+			// TODO: Check return queue
+
+			// Check send queue
+			if (!layer1_send_queue.empty())
+			{
+				// Put this transaction in the event queue with LAYER1_SEND_DELAY as timer.
+				// Sort the event queue to make sure the event queue stays sorted by expire time.
+				Transaction t = layer1_send_queue.front();
+				layer1_send_queue.pop_front();
+				TransactionEvent e (LAYER1_SEND_EVENT, t, currentClockCycle + LAYER1_SEND_DELAY);
+				Add_Event(e);
+				layer1_busy = true;
+
+				if (DEBUG)
+				{
+					cout << currentClockCycle << " : Starting LAYER1 SEND for transaction: (" << t.isWrite << ", " << t.addr << ")\n";
+				}
+			}
+		}
+	}
+
+
+
+	void PCI_SSD_System::Process_Layer1_Send_Event(TransactionEvent e)
+	{
+		assert(e.type == LAYER1_SEND_EVENT);
+
+		bool success = hybridsim->addTransaction(e.trans.isWrite, e.trans.addr);
+		if (success)
+		{
+			layer1_busy = false;
+
+			if (DEBUG)
+			{
+				cout << currentClockCycle << " : Finished LAYER1 SEND for transaction: (" << e.trans.isWrite << ", " << e.trans.addr << ")\n";
+			}
+		}
+		else
+		{
+			// Try again in RETRY_DELAY cycles.
+			e.expire_time += RETRY_DELAY;
+			Add_Event(e);
+			layer1_busy = true;
+		}
+	}
+
 
 }

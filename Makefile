@@ -56,4 +56,4 @@ ${LIB_NAME}: ${POBJ}
 	g++ $(INCLUDES) -std=c++0x -O3 -g -ffast-math -fPIC -DNO_OUTPUT -DNO_STORAGE -o $@ -c $<
 
 clean: 
-	rm -rf ${REBUILDABLES} *.dep out results *.log callgrind*
+	rm -rf ${REBUILDABLES} *.dep out results *.log callgrind* nvdimm_logs

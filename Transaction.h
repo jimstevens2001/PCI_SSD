@@ -29,57 +29,55 @@
 *********************************************************************************/
 
 
-#ifndef PCI_SSD_SYSTEM_H
-#define PCI_SSD_SYSTEM_H
+#ifndef PCI_SSD_TRANSACTION_H
+#define PCI_SSD_TRANSACTION_H
 
-#include "CallbackPCI.h"
-
-#include "config.h"
+#include <stdint.h>
 
 namespace PCISSD
 {
-	class PCI_SSD_System
+	class Transaction
 	{
 		public:
-		PCI_SSD_System(uint id);
-		bool addTransaction(bool isWrite, uint64_t addr);
-		bool WillAcceptTransaction();
-		void update();
-		void RegisterCallbacks(TransactionCompleteCB *readDone, TransactionCompleteCB *writeDone);
-		void printLogfile();
+		bool isWrite;
+		uint64_t addr;
 
-		// Internal functions
-		void HybridSim_Read_Callback(uint id, uint64_t addr, uint64_t cycle);
-		void HybridSim_Write_Callback(uint id, uint64_t addr, uint64_t cycle);
+		Transaction() {}
 
-		void Process_Event_Queue();
-		void Add_Event(TransactionEvent e);
-
-		void Process_Layer1();
-		void Process_Layer1_Send_Event(TransactionEvent e);
-
-
-		// Internal state
-        TransactionCompleteCB *ReadDone;
-        TransactionCompleteCB *WriteDone;
-		uint systemID;
-
-		uint64_t currentClockCycle;
-
-		HybridSim::HybridSystem *hybridsim;
-
-		set<Transaction> pending; // Simple rule: only one instance of each address at a time, otherwise, this is an error.
-
-		list<TransactionEvent> event_queue;
-
-		bool layer1_busy;
-		list<Transaction> layer1_send_queue;
-		list<Transaction> layer1_return_queue;
-
+		Transaction(bool w, uint64_t a)
+		{
+			isWrite = w;
+			addr = a;
+		}
 	};
 
-	PCI_SSD_System *getInstance(uint id);
+	enum TransactionEventType
+	{
+		LAYER1_SEND_EVENT,
+		LAYER1_RETURN_EVENT
+	};
 
+	class TransactionEvent
+	{
+		public:
+		TransactionEventType type;
+		Transaction trans;
+		uint64_t expire_time;
+
+		TransactionEvent() {}
+
+		TransactionEvent(TransactionEventType ty, Transaction tr, uint64_t e)
+		{
+			type = ty;
+			trans = tr;
+			expire_time = e;
+		}
+
+		bool operator< (TransactionEvent &e)
+		{
+			return this->expire_time < e.expire_time;
+		}
+	};
 }
 
 #endif

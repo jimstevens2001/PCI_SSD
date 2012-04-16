@@ -34,18 +34,27 @@
 
 // Set options here
 
+#define LAYER1_SEND_DELAY 200
+#define RETRY_DELAY 10
+
+#define DEBUG 1
+
 
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <list>
+#include <set>
 #include <sstream>
+#include <stdint.h>
+#include <assert.h>
 
 using namespace std;
 
 // External Interface for HybridSim
 #include <HybridSim.h>
 
+#include "Transaction.h"
 #include "util.h"
 
 #endif

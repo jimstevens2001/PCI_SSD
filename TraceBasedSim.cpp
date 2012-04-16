@@ -201,8 +201,8 @@ int PCI_SSD_TBS::run_trace(string tracefile)
 
 	// This is a hack for the moment to ensure that a final write completes.
 	// In the future, we need two callbacks to fix this.
-	for (int i=0; i<1000000; i++)
-		mem->update();
+	//for (int i=0; i<1000000; i++)
+	//	mem->update();
 
 
 	cout << "\n\n" << mem->currentClockCycle << ": completed " << complete << "\n\n";
