@@ -54,7 +54,9 @@ namespace PCISSD
 	enum TransactionEventType
 	{
 		LAYER1_SEND_EVENT,
-		LAYER1_RETURN_EVENT
+		LAYER1_RETURN_EVENT,
+		LAYER2_SEND_EVENT,
+		LAYER2_RETURN_EVENT
 	};
 
 	class TransactionEvent

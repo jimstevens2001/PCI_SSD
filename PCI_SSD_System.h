@@ -54,9 +54,15 @@ namespace PCISSD
 
 		void Process_Event_Queue();
 		void Add_Event(TransactionEvent e);
+		void Retry_Event(TransactionEvent e);
 
 		void Process_Layer1();
 		void Process_Layer1_Send_Event(TransactionEvent e);
+		void Process_Layer1_Return_Event(TransactionEvent e);
+
+		void Process_Layer2();
+		void Process_Layer2_Send_Event(TransactionEvent e);
+		void Process_Layer2_Return_Event(TransactionEvent e);
 
 
 		// Internal state
@@ -75,6 +81,10 @@ namespace PCISSD
 		bool layer1_busy;
 		list<Transaction> layer1_send_queue;
 		list<Transaction> layer1_return_queue;
+
+		bool layer2_busy;
+		list<Transaction> layer2_send_queue;
+		list<Transaction> layer2_return_queue;
 
 	};
 

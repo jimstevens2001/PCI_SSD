@@ -83,20 +83,39 @@ namespace PCISSD
 
 	void PCI_SSD_System::HybridSim_Read_Callback(uint id, uint64_t addr, uint64_t cycle)
 	{
-		if (ReadDone != NULL)
-			(*ReadDone)(systemID, addr, currentClockCycle);
+		// Create a new transaction for the return.
+		Transaction t(false, addr);
+
+		// Put transaction in appropriate return queue.
+		layer2_return_queue.push_back(t);
+
+		if (DEBUG)
+		{
+			cout << currentClockCycle << " : Added transaction to layer2_return_queue: (" << t.isWrite << ", " << t.addr << ")\n";
+		}
 	}
 
 
 	void PCI_SSD_System::HybridSim_Write_Callback(uint id, uint64_t addr, uint64_t cycle)
 	{
-		if (WriteDone != NULL)
-			(*WriteDone)(systemID, addr, currentClockCycle);
+		// Create a new transaction for the return.
+		Transaction t(true, addr);
+
+		// Put transaction in appropriate return queue.
+		layer2_return_queue.push_back(t);
+
+		if (DEBUG)
+		{
+			cout << currentClockCycle << " : Added transaction to layer2_return_queue: (" << t.isWrite << ", " << t.addr << ")\n";
+		}
 	}
 
 
 	void PCI_SSD_System::update()
 	{
+		// Do Processing for layer 2
+		Process_Layer2();
+
 		// Do processing for layer 1
 		Process_Layer1();
 
@@ -113,7 +132,9 @@ namespace PCISSD
 		{
 			if (currentClockCycle % 10000 == 0)
 			{
-				cout << currentClockCycle << " : length(event_queue)=" << event_queue.size() << " length(layer1_send_queue)=" << layer1_send_queue.size() << "\n";
+				cout << currentClockCycle << " : length(event_queue)=" << event_queue.size() 
+						<< " length(layer1_send_queue)=" << layer1_send_queue.size() 
+						<< " length(layer1_return_queue)=" << layer1_return_queue.size() << "\n";
 			}
 		}
 	}
@@ -121,6 +142,7 @@ namespace PCISSD
 
 
 
+	// Event Queue Implementation
 	void PCI_SSD_System::Process_Event_Queue()
 	{
 		while ((!event_queue.empty()) && (event_queue.front().expire_time <= currentClockCycle))
@@ -132,6 +154,20 @@ namespace PCISSD
 			{
 				Process_Layer1_Send_Event(e);
 			}
+			else if (e.type == LAYER1_RETURN_EVENT)
+			{
+				Process_Layer1_Return_Event(e);
+			}
+			else if (e.type == LAYER2_SEND_EVENT)
+			{
+				Process_Layer2_Send_Event(e);
+			}
+			else if (e.type == LAYER2_RETURN_EVENT)
+			{
+				Process_Layer2_Return_Event(e);
+			}
+			else
+				assert(0);
 		}
 
 	}
@@ -144,21 +180,58 @@ namespace PCISSD
 	}
 
 
+	void PCI_SSD_System::Retry_Event(TransactionEvent e)
+	{
+		// Try again in RETRY_DELAY cycles.
+		e.expire_time += RETRY_DELAY;
+		Add_Event(e);
+	}
+
+
+	// Layer 1 implementation
 	void PCI_SSD_System::Process_Layer1()
 	{
 		if (!layer1_busy)
 		{
-			// TODO: Check return queue
+			// Check return queue
+			// Return queue has strict priority over send queue
+			if (!layer1_return_queue.empty())
+			{
+				// Put this transaction in the event queue with appropriate delay as timer.
+
+				// Extract the transaction at the front of the queue.
+				Transaction t = layer1_return_queue.front();
+				layer1_return_queue.pop_front();
+
+				// Add event to the event queue.
+				uint64_t delay = t.isWrite ? LAYER1_COMMAND_DELAY : LAYER1_DATA_DELAY;
+				TransactionEvent e (LAYER1_RETURN_EVENT, t, currentClockCycle + delay);
+				Add_Event(e);
+
+				// Set the busy indicator for layer 1.
+				layer1_busy = true;
+
+				if (DEBUG)
+				{
+					cout << currentClockCycle << " : Starting LAYER1 RETURN for transaction: (" << t.isWrite << ", " << t.addr << ")\n";
+				}
+			}
 
 			// Check send queue
-			if (!layer1_send_queue.empty())
+			else if (!layer1_send_queue.empty())
 			{
-				// Put this transaction in the event queue with LAYER1_SEND_DELAY as timer.
-				// Sort the event queue to make sure the event queue stays sorted by expire time.
+				// Put this transaction in the event queue with appropriate delay as timer.
+
+				// Extract the transaction at the front of the queue.
 				Transaction t = layer1_send_queue.front();
 				layer1_send_queue.pop_front();
-				TransactionEvent e (LAYER1_SEND_EVENT, t, currentClockCycle + LAYER1_SEND_DELAY);
+
+				// Add event to the event queue.
+				uint64_t delay = t.isWrite ? LAYER1_DATA_DELAY : LAYER1_COMMAND_DELAY;
+				TransactionEvent e (LAYER1_SEND_EVENT, t, currentClockCycle + delay);
 				Add_Event(e);
+
+				// Set the busy indicator for layer 1.
 				layer1_busy = true;
 
 				if (DEBUG)
@@ -175,6 +248,17 @@ namespace PCISSD
 	{
 		assert(e.type == LAYER1_SEND_EVENT);
 
+		// Send transaction to layer 2
+		layer2_send_queue.push_back(e.trans);
+		layer1_busy = false;
+
+		if (DEBUG)
+		{
+			cout << currentClockCycle << " : Finished LAYER1 SEND for transaction: (" << e.trans.isWrite << ", " << e.trans.addr << ")\n";
+			cout << currentClockCycle << " : Added transaction to layer2_send_queue: (" << e.trans.isWrite << ", " << e.trans.addr << ")\n";
+		}
+
+/*
 		bool success = hybridsim->addTransaction(e.trans.isWrite, e.trans.addr);
 		if (success)
 		{
@@ -187,10 +271,126 @@ namespace PCISSD
 		}
 		else
 		{
-			// Try again in RETRY_DELAY cycles.
-			e.expire_time += RETRY_DELAY;
-			Add_Event(e);
+			Retry_Event(e);
 			layer1_busy = true;
+		}
+*/
+	}
+
+	void PCI_SSD_System::Process_Layer1_Return_Event(TransactionEvent e)
+	{
+		assert(e.type == LAYER1_RETURN_EVENT);
+
+		if (DEBUG)
+		{
+			cout << currentClockCycle << " : Finished LAYER1 RETURN for transaction: (" << e.trans.isWrite << ", " << e.trans.addr << ")\n";
+		}
+
+		layer1_busy = false;
+
+		// Call the appropriate callback.
+		if (e.trans.isWrite)
+		{
+			if (WriteDone != NULL)
+				(*WriteDone)(systemID, e.trans.addr, currentClockCycle);
+		}
+		else
+		{
+			if (ReadDone != NULL)
+				(*ReadDone)(systemID, e.trans.addr, currentClockCycle);
+		}
+	}
+
+	void PCI_SSD_System::Process_Layer2()
+	{
+		if (!layer2_busy)
+		{
+			// Check return queue
+			// Return queue has strict priority over send queue
+			if (!layer2_return_queue.empty())
+			{
+				// Put this transaction in the event queue with appropriate delay as timer.
+
+				// Extract the transaction at the front of the queue.
+				Transaction t = layer2_return_queue.front();
+				layer2_return_queue.pop_front();
+
+				// Add event to the event queue.
+				uint64_t delay = t.isWrite ? LAYER2_COMMAND_DELAY : LAYER2_DATA_DELAY;
+				TransactionEvent e (LAYER2_RETURN_EVENT, t, currentClockCycle + delay);
+				Add_Event(e);
+
+				// Set the busy indicator for layer 1.
+				layer2_busy = true;
+
+				if (DEBUG)
+				{
+					cout << currentClockCycle << " : Starting LAYER2 RETURN for transaction: (" << t.isWrite << ", " << t.addr << ")\n";
+				}
+			}
+
+			// Check send queue
+			else if (!layer2_send_queue.empty())
+			{
+				// Put this transaction in the event queue with appropriate delay as timer.
+
+				// Extract the transaction at the front of the queue.
+				Transaction t = layer2_send_queue.front();
+				layer2_send_queue.pop_front();
+
+				// Add event to the event queue.
+				uint64_t delay = t.isWrite ? LAYER2_DATA_DELAY : LAYER2_COMMAND_DELAY;
+				TransactionEvent e (LAYER2_SEND_EVENT, t, currentClockCycle + delay);
+				Add_Event(e);
+
+				// Set the busy indicator for layer 1.
+				layer2_busy = true;
+
+				if (DEBUG)
+				{
+					cout << currentClockCycle << " : Starting LAYER2 SEND for transaction: (" << t.isWrite << ", " << t.addr << ")\n";
+				}
+			}
+		}
+
+	}
+
+
+	void PCI_SSD_System::Process_Layer2_Send_Event(TransactionEvent e)
+	{
+		assert(e.type == LAYER2_SEND_EVENT);
+
+		bool success = hybridsim->addTransaction(e.trans.isWrite, e.trans.addr);
+		if (success)
+		{
+			layer2_busy = false;
+
+			if (DEBUG)
+			{
+				cout << currentClockCycle << " : Finished LAYER2 SEND for transaction: (" << e.trans.isWrite << ", " << e.trans.addr << ")\n";
+			}
+		}
+		else
+		{
+			Retry_Event(e);
+			layer2_busy = true;
+		}
+
+	}
+
+
+	void PCI_SSD_System::Process_Layer2_Return_Event(TransactionEvent e)
+	{
+		assert(e.type == LAYER2_RETURN_EVENT);
+
+		// Send transaction back to layer 1
+		layer1_return_queue.push_back(e.trans);
+		layer2_busy = false;
+
+		if (DEBUG)
+		{
+			cout << currentClockCycle << " : Finished LAYER2 RETURN for transaction: (" << e.trans.isWrite << ", " << e.trans.addr << ")\n";
+			cout << currentClockCycle << " : Added transaction to layer1_return_queue: (" << e.trans.isWrite << ", " << e.trans.addr << ")\n";
 		}
 	}
 

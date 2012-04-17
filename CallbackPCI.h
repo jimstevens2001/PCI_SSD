@@ -41,49 +41,36 @@ using std::vector;
 namespace PCISSD
 {
 
-template <typename ReturnT, typename Param1T, typename Param2T, typename Param3T>
-class CallbackBase
-{
-	public:
-		virtual ~CallbackBase() = 0;
+	template <typename ReturnT, typename Param1T, typename Param2T, typename Param3T>
+	class CallbackBase
+	{
+		public:
 		virtual ReturnT operator()(Param1T, Param2T, Param3T) = 0;
-};
+	};
 
-template <typename Return, typename Param1T, typename Param2T, typename Param3T>
-PCISSD::CallbackBase<Return,Param1T,Param2T,Param3T>::~CallbackBase() {}
 
-template <typename ConsumerT, typename ReturnT,
-typename Param1T, typename Param2T, typename Param3T >
-class Callback: public CallbackBase<ReturnT,Param1T,Param2T,Param3T>
-{
-private:
-	typedef ReturnT (ConsumerT::*PtrMember)(Param1T,Param2T,Param3T);
-
-public:
-	Callback( ConsumerT* const object, PtrMember member) :
-			object(object), member(member)
+	template <typename ConsumerT, typename ReturnT, typename Param1T, typename Param2T, typename Param3T >
+	class Callback: public CallbackBase<ReturnT,Param1T,Param2T,Param3T>
 	{
-	}
+		private:
+		typedef ReturnT (ConsumerT::*PtrMember)(Param1T,Param2T,Param3T);
 
-	Callback( const Callback<ConsumerT,ReturnT,Param1T,Param2T,Param3T>& e ) :
-			object(e.object), member(e.member)
-	{
-	}
+		public:
+		Callback(ConsumerT* const object, PtrMember member) : object(object), member(member) {}
 
-	ReturnT operator()(Param1T param1, Param2T param2, Param3T param3)
-	{
-		return (const_cast<ConsumerT*>(object)->*member)
-		       (param1,param2,param3);
-	}
+		Callback(const Callback<ConsumerT,ReturnT,Param1T,Param2T,Param3T> &e) : object(e.object), member(e.member) {}
 
-private:
+		ReturnT operator()(Param1T param1, Param2T param2, Param3T param3)
+		{
+			return (const_cast<ConsumerT*>(object)->*member)(param1,param2,param3);
+		}
 
-	ConsumerT* const object;
-	const PtrMember  member;
-};
+		private:
+		ConsumerT* const object;
+		const PtrMember  member;
+	};
 
-typedef CallbackBase <void, uint, uint64_t, uint64_t> TransactionCompleteCB;
-typedef CallbackBase <void, uint, vector<vector<double> >, uint64_t> FlashPowerCB;
+	typedef CallbackBase <void, uint, uint64_t, uint64_t> TransactionCompleteCB;
 
 } 
 
