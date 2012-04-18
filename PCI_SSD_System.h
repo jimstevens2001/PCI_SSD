@@ -64,6 +64,8 @@ namespace PCISSD
 		void Process_Layer2_Send_Event(TransactionEvent e);
 		void Process_Layer2_Return_Event(TransactionEvent e);
 
+		void handle_callback(bool isWrite, uint64_t addr);
+
 
 		// Internal state
         TransactionCompleteCB *ReadDone;
@@ -74,7 +76,11 @@ namespace PCISSD
 
 		HybridSim::HybridSystem *hybridsim;
 
-		set<Transaction> pending; // Simple rule: only one instance of each address at a time, otherwise, this is an error.
+		// State to save while HybridSim is doing its thing.
+		unordered_map<uint64_t, Transaction> hybridsim_transactions; // Outstanding sector transactions.
+		unordered_map<uint64_t, set<uint64_t>> hybridsim_accesses; // Outstanding acceses to HybridSim for each sector.
+
+		set<uint64_t> pending_sectors; // Simple rule: only one instance of each address at a time, otherwise, this is an error.
 
 		list<TransactionEvent> event_queue;
 

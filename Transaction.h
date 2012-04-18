@@ -41,13 +41,15 @@ namespace PCISSD
 		public:
 		bool isWrite;
 		uint64_t addr;
+		uint64_t orig_addr;
 
 		Transaction() {}
 
-		Transaction(bool w, uint64_t a)
+		Transaction(bool w, uint64_t a, uint64_t o)
 		{
 			isWrite = w;
 			addr = a;
+			orig_addr = a;
 		}
 	};
 

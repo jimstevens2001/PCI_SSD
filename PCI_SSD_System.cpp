@@ -51,7 +51,26 @@ namespace PCISSD
 
 	bool PCI_SSD_System::addTransaction(bool isWrite, uint64_t addr)
 	{
-		Transaction t(isWrite, addr);
+		// Make sure this sector isn't already being processed.
+		// This is just going to fail an assert for now. I can fix it later if we ever have a user doing this.
+		uint64_t aligned_sector_addr = SECTOR_ALIGN(addr);
+		assert(pending_sectors.count(aligned_sector_addr) == 0);
+
+		if (DEBUG)
+		{
+			if (aligned_sector_addr != addr)
+			{
+				cout << currentClockCycle << ": Unaligned sector arrived (orig: " << addr 
+						<< ", aligned: " << aligned_sector_addr << ")\n";
+			}
+		}
+
+		// Insert this sector into the pending_sectors set.
+		pending_sectors.insert(aligned_sector_addr);
+		assert(pending_sectors.count(aligned_sector_addr) == 1);
+
+		// Create the transaction and place it in the Layer 1 Send Queue.
+		Transaction t(isWrite, aligned_sector_addr, addr);
 		layer1_send_queue.push_back(t);
 
 		if (DEBUG)
@@ -83,32 +102,15 @@ namespace PCISSD
 
 	void PCI_SSD_System::HybridSim_Read_Callback(uint id, uint64_t addr, uint64_t cycle)
 	{
-		// Create a new transaction for the return.
-		Transaction t(false, addr);
-
-		// Put transaction in appropriate return queue.
-		layer2_return_queue.push_back(t);
-
-		if (DEBUG)
-		{
-			cout << currentClockCycle << " : Added transaction to layer2_return_queue: (" << t.isWrite << ", " << t.addr << ")\n";
-		}
+		handle_callback(false, addr);
 	}
 
 
 	void PCI_SSD_System::HybridSim_Write_Callback(uint id, uint64_t addr, uint64_t cycle)
 	{
-		// Create a new transaction for the return.
-		Transaction t(true, addr);
-
-		// Put transaction in appropriate return queue.
-		layer2_return_queue.push_back(t);
-
-		if (DEBUG)
-		{
-			cout << currentClockCycle << " : Added transaction to layer2_return_queue: (" << t.isWrite << ", " << t.addr << ")\n";
-		}
+		handle_callback(true, addr);
 	}
+
 
 
 	void PCI_SSD_System::update()
@@ -257,24 +259,6 @@ namespace PCISSD
 			cout << currentClockCycle << " : Finished LAYER1 SEND for transaction: (" << e.trans.isWrite << ", " << e.trans.addr << ")\n";
 			cout << currentClockCycle << " : Added transaction to layer2_send_queue: (" << e.trans.isWrite << ", " << e.trans.addr << ")\n";
 		}
-
-/*
-		bool success = hybridsim->addTransaction(e.trans.isWrite, e.trans.addr);
-		if (success)
-		{
-			layer1_busy = false;
-
-			if (DEBUG)
-			{
-				cout << currentClockCycle << " : Finished LAYER1 SEND for transaction: (" << e.trans.isWrite << ", " << e.trans.addr << ")\n";
-			}
-		}
-		else
-		{
-			Retry_Event(e);
-			layer1_busy = true;
-		}
-*/
 	}
 
 	void PCI_SSD_System::Process_Layer1_Return_Event(TransactionEvent e)
@@ -288,16 +272,23 @@ namespace PCISSD
 
 		layer1_busy = false;
 
+		// Remove from the pending_sectors set.
+		uint64_t aligned_sector_addr = SECTOR_ALIGN(e.trans.addr);
+		assert(pending_sectors.count(aligned_sector_addr) == 1);
+		pending_sectors.erase(aligned_sector_addr);
+		assert(pending_sectors.count(aligned_sector_addr) == 0);
+
 		// Call the appropriate callback.
+		// Use the orig_addr since this is the unaligned original address that the caller expects.
 		if (e.trans.isWrite)
 		{
 			if (WriteDone != NULL)
-				(*WriteDone)(systemID, e.trans.addr, currentClockCycle);
+				(*WriteDone)(systemID, e.trans.orig_addr, currentClockCycle);
 		}
 		else
 		{
 			if (ReadDone != NULL)
-				(*ReadDone)(systemID, e.trans.addr, currentClockCycle);
+				(*ReadDone)(systemID, e.trans.orig_addr, currentClockCycle);
 		}
 	}
 
@@ -360,22 +351,41 @@ namespace PCISSD
 	{
 		assert(e.type == LAYER2_SEND_EVENT);
 
-		bool success = hybridsim->addTransaction(e.trans.isWrite, e.trans.addr);
-		if (success)
-		{
-			layer2_busy = false;
+		// This code sends out HYBRIDSIM_TRANSACTIONS transactions for each sector,
+		// since HybridSim transactions are at a smaller granularity than a sector.
+		// The base address for all transactions is the aligned sector address.
+		uint64_t base_address = e.trans.addr;
 
-			if (DEBUG)
-			{
-				cout << currentClockCycle << " : Finished LAYER2 SEND for transaction: (" << e.trans.isWrite << ", " << e.trans.addr << ")\n";
-			}
-		}
-		else
+		// Assert that there is not an outstanding access to this sector.
+		assert(hybridsim_transactions.count(base_address) == 0);
+		assert(hybridsim_accesses.count(base_address) == 0);
+
+		// Create entries for this sector access.
+		hybridsim_transactions[base_address] = e.trans; // Save the transaction object for use by the callback.
+		hybridsim_accesses[base_address] = set<uint64_t>(); // Empty set for the outstanding HybridSim accesses.
+
+		// I like assertions. They prevent migraines.
+		assert(hybridsim_transactions.count(base_address) == 1);
+		assert(hybridsim_accesses.count(base_address) == 1);
+
+
+		// Add HYBRIDSIM_TRANSACTIONS transactions to HybridSim.
+		for (uint64_t i = 0; i < HYBRIDSIM_TRANSACTIONS; i++)
 		{
-			Retry_Event(e);
-			layer2_busy = true;
+			uint64_t cur_address = base_address + i * HYBRIDSIM_TRANSACTION_SIZE;
+			hybridsim_accesses[base_address].insert(cur_address);
+			bool success = hybridsim->addTransaction(e.trans.isWrite, cur_address);
+			assert(success); // HybridSim::addTransaction should never fail since it just returns true. :)
 		}
 
+		// Layer 2 channel is no longer busy.
+		layer2_busy = false;
+
+		if (DEBUG)
+		{
+			cout << currentClockCycle << " : Finished LAYER2 SEND for transaction: (" << e.trans.isWrite << ", " << e.trans.addr << ")\n";
+			cout << currentClockCycle << " : Added " << HYBRIDSIM_TRANSACTIONS << " to HybridSim for base address " << base_address << "\n";
+		}
 	}
 
 
@@ -394,5 +404,56 @@ namespace PCISSD
 		}
 	}
 
+
+	void PCI_SSD_System::handle_callback(bool isWrite, uint64_t addr)
+	{
+		// Compute the base address.
+		uint64_t base_address = SECTOR_ALIGN(addr);
+
+		// Check that this address is in the pending state for HybridSim.
+		assert(hybridsim_transactions.count(base_address) == 1);
+		assert(hybridsim_accesses.count(base_address) == 1);
+
+		// Get the transaction
+		Transaction old_t = hybridsim_transactions[base_address];
+		assert(isWrite == old_t.isWrite);
+		assert(base_address == old_t.addr);
+
+		// Remove current address from the access set for the base address.
+		assert(hybridsim_accesses[base_address].count(addr) == 1);
+		hybridsim_accesses[base_address].erase(addr);
+		assert(hybridsim_accesses[base_address].count(addr) == 0);
+
+		if (DEBUG)
+		{
+			cout << currentClockCycle << " : Received callback from HybridSim (" << isWrite << ", " << addr << ")\n";
+		}
+		
+		// If the whole sector transaction is done, then send it back up.
+		if (hybridsim_accesses[base_address].empty())
+		{
+			// Create a Transaction for the return path.
+			// Not reusing old_t since it should be deleted by the pending state cleanup.
+			// The only thing I need from old_t is the orig_addr (which is the address before SECTOR_ALIGN()).
+			Transaction t(isWrite, base_address, old_t.orig_addr);
+
+			// Remove the pending state.
+			hybridsim_transactions.erase(base_address);
+			hybridsim_accesses.erase(base_address);
+
+			// Check that the pending state is cleared.
+			assert(hybridsim_transactions.count(base_address) == 0);
+			assert(hybridsim_accesses.count(base_address) == 0);
+
+			// Put transaction in appropriate return queue.
+			layer2_return_queue.push_back(t);
+
+			if (DEBUG)
+			{
+				cout << currentClockCycle << " : Finished HybridSim transactions for base address " << base_address << "\n";
+				cout << currentClockCycle << " : Added transaction to layer2_return_queue: (" << t.isWrite << ", " << t.addr << ")\n";
+			}
+		}
+	}
 
 }

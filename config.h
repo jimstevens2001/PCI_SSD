@@ -34,6 +34,9 @@
 
 // Set options here
 
+#define EXTERNAL_CLOCK 1
+#define INTERNAL_CLOCK 1
+
 #define LAYER1_COMMAND_DELAY 50
 #define LAYER1_DATA_DELAY 200
 
@@ -42,11 +45,19 @@
 
 #define RETRY_DELAY 10
 
+// Specify transaction sizes.
+// Sector size is what the user of this module expects to be the transaction size.
+// HYBRIDSIM_TRANSACTION_SIZE is what HybridSim uses.
 #define SECTOR_SIZE 512
 #define HYBRIDSIM_TRANSACTION_SIZE 64
-#define HYBRIDSIM_TRANSACTIONS (SECTOR_SIZE / HYBRIDSIM_TRANSACTION_SIZE)
 
+// Enable debugging output.
 #define DEBUG 1
+
+// Derived Parameters
+#define HYBRIDSIM_TRANSACTIONS (SECTOR_SIZE / HYBRIDSIM_TRANSACTION_SIZE)
+#define SECTOR_ALIGN(addr) ((addr / SECTOR_SIZE) * SECTOR_SIZE)
+
 
 
 #include <iostream>
@@ -54,6 +65,7 @@
 #include <string>
 #include <list>
 #include <set>
+#include <unordered_map>
 #include <sstream>
 #include <stdint.h>
 #include <assert.h>
