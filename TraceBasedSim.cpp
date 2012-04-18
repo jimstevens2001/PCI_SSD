@@ -206,6 +206,7 @@ int PCI_SSD_TBS::run_trace(string tracefile)
 
 
 	cout << "\n\n" << mem->currentClockCycle << ": completed " << complete << "\n\n";
+	cout << "TBS cycle_counter: " << cycle_counter << "\n";
 	//cout << "dram_pending=" << mem->dram_pending.size() << " flash_pending=" << mem->flash_pending.size() << "\n\n";
 	//cout << "dram_queue=" << mem->dram_queue.size() << " flash_queue=" << mem->flash_queue.size() << "\n\n";
 	//cout << "pending_pages=" << mem->pending_pages.size() << "\n\n";

@@ -41,6 +41,10 @@ namespace PCISSD
 
 		currentClockCycle = 0;
 
+		// Set up clock domain crosser.
+		ClockDomain::ClockUpdateCB *cd_callback = new ClockDomain::Callback<PCI_SSD_System, void>(this, &PCI_SSD_System::update_internal);
+		clockdomain = new ClockDomain::ClockDomainCrosser(EXTERNAL_CLOCK, INTERNAL_CLOCK, cd_callback);
+
 		// Register callbacks to HybridSim.
 		typedef HybridSim::Callback <PCI_SSD_System, void, uint, uint64_t, uint64_t> hybridsim_callback_t;
         HybridSim::TransactionCompleteCB *read_cb = new hybridsim_callback_t(this, &PCI_SSD_System::HybridSim_Read_Callback);
@@ -112,8 +116,12 @@ namespace PCISSD
 	}
 
 
-
 	void PCI_SSD_System::update()
+	{
+		clockdomain->update();
+	}
+
+	void PCI_SSD_System::update_internal()
 	{
 		// Do Processing for layer 2
 		Process_Layer2();

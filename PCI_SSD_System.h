@@ -32,8 +32,8 @@
 #ifndef PCI_SSD_SYSTEM_H
 #define PCI_SSD_SYSTEM_H
 
+#include "ClockDomain.h"
 #include "CallbackPCI.h"
-
 #include "config.h"
 
 namespace PCISSD
@@ -51,6 +51,8 @@ namespace PCISSD
 		// Internal functions
 		void HybridSim_Read_Callback(uint id, uint64_t addr, uint64_t cycle);
 		void HybridSim_Write_Callback(uint id, uint64_t addr, uint64_t cycle);
+
+		void update_internal();
 
 		void Process_Event_Queue();
 		void Add_Event(TransactionEvent e);
@@ -73,6 +75,7 @@ namespace PCISSD
 		uint systemID;
 
 		uint64_t currentClockCycle;
+		ClockDomain::ClockDomainCrosser *clockdomain;
 
 		HybridSim::HybridSystem *hybridsim;
 

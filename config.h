@@ -34,6 +34,9 @@
 
 // Set options here
 
+// Define clock ratio EXTERNAL_CLOCK:INTERNAL_CLOCK.
+// For example, if this module is to run at 1 GHz while the cpu is 
+// running at 2 Ghz, then the ratio would be 2:1.
 #define EXTERNAL_CLOCK 1
 #define INTERNAL_CLOCK 1
 
