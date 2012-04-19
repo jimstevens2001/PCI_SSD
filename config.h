@@ -32,30 +32,91 @@
 #ifndef PCISSD_CONFIG_H
 #define PCISSD_CONFIG_H
 
+////////////////////////////////////////////////////////////////////
 // Set options here
+
+// Enable debugging output.
+#define DEBUG 1
 
 // Define clock ratio EXTERNAL_CLOCK:INTERNAL_CLOCK.
 // For example, if this module is to run at 1 GHz while the cpu is 
 // running at 2 Ghz, then the ratio would be 2:1.
-#define EXTERNAL_CLOCK 1
+// Note: Keep the internal clock running at 1 GHz, since the delays below
+// are specified in terms of a 1 ns clock cycle time.
+#define EXTERNAL_CLOCK 2
 #define INTERNAL_CLOCK 1
 
-#define LAYER1_COMMAND_DELAY 50
-#define LAYER1_DATA_DELAY 200
+// Specify delays for Layer 1 (PCI 2.0, PCI 3.0, DMI 2.0, or none)
+// All delays assume a command packet of 16 bytes and a data packet of 528 bytes.
+// PCI 2.0 => PCI2, PCI 3.0 => PCI3, DMI 2.0 => DMI2, none => NONEL1
+#define DMI2 1
 
-#define LAYER2_COMMAND_DELAY 100
-#define LAYER2_DATA_DELAY 400
+// Specify the number of lanes.
+// This only applies to PCI buses. Otherwise it should be 1.
+// Valid lane counts are 1, 2, 4, 8, or 16.
+#define LAYER1_LANES 1
+
+
+// Specify delays for Layer 1 (SATA 2, SATA 3, or none)
+// All delays assume a command packet of 16 bytes and a data packet of 528 bytes.
+// SATA 2.0 => SATA2, SATA2 3.0 => SATA3, none => NONEL2
+#define SATA2 1
+
+////////////////////////////////////////////////////////////////////
+// Parameters below this point should never change.
+
+// PCIe 2.0 (500 MB/s per lane)
+#ifdef PCI2
+#define LAYER1_DATA_DELAY 1056
+#define LAYER1_COMMAND_DELAY 32
+#endif
+
+// PCIe 3.0 (1 GB/s per lane)
+#ifdef PCI3
+#define LAYER1_DATA_DELAY 528
+#define LAYER1_COMMAND_DELAY 16
+#endif
+
+// DMI 2.0 (2.5 GB/s)
+#ifdef DMI2
+#define LAYER1_DATA_DELAY 212
+#define LAYER1_COMMAND_DELAY 7
+#endif
+
+// No delay for Layer 1
+#ifdef NONEL1
+#define LAYER1_DATA_DELAY 0
+#define LAYER1_COMMAND_DELAY 0
+#endif
+
+// SATA 2.0 (375 MB/s)
+#ifdef SATA2
+#define LAYER2_DATA_DELAY 1408
+#define LAYER2_COMMAND_DELAY 43
+#endif
+
+// SATA 3.0 (750 MB/s)
+#ifdef SATA3
+#define LAYER2_DATA_DELAY 704
+#define LAYER2_COMMAND_DELAY 22
+#endif
+
+// No delay for Layer 2
+#ifdef NONEL2
+#define LAYER2_DATA_DELAY 0
+#define LAYER2_COMMAND_DELAY 0
+#endif
+
 
 #define RETRY_DELAY 10
 
 // Specify transaction sizes.
 // Sector size is what the user of this module expects to be the transaction size.
 // HYBRIDSIM_TRANSACTION_SIZE is what HybridSim uses.
+// These should never change since QEMU's IDE interface assumes 512 and HybridSim assumes 64.
 #define SECTOR_SIZE 512
 #define HYBRIDSIM_TRANSACTION_SIZE 64
 
-// Enable debugging output.
-#define DEBUG 1
 
 // Derived Parameters
 #define HYBRIDSIM_TRANSACTIONS (SECTOR_SIZE / HYBRIDSIM_TRANSACTION_SIZE)
