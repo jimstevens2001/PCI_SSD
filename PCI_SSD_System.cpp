@@ -43,7 +43,7 @@ namespace PCISSD
 
 		// Set up clock domain crosser.
 		ClockDomain::ClockUpdateCB *cd_callback = new ClockDomain::Callback<PCI_SSD_System, void>(this, &PCI_SSD_System::update_internal);
-		clockdomain = new ClockDomain::ClockDomainCrosser(EXTERNAL_CLOCK, INTERNAL_CLOCK, cd_callback);
+		clockdomain = new ClockDomain::ClockDomainCrosser(INTERNAL_CLOCK, EXTERNAL_CLOCK, cd_callback);
 
 		// Register callbacks to HybridSim.
 		typedef HybridSim::Callback <PCI_SSD_System, void, uint, uint64_t, uint64_t> hybridsim_callback_t;
@@ -215,6 +215,7 @@ namespace PCISSD
 
 				// Add event to the event queue.
 				uint64_t delay = t.isWrite ? LAYER1_COMMAND_DELAY : LAYER1_DATA_DELAY;
+				delay = delay / LAYER1_LANES;
 				TransactionEvent e (LAYER1_RETURN_EVENT, t, currentClockCycle + delay);
 				Add_Event(e);
 
@@ -238,6 +239,7 @@ namespace PCISSD
 
 				// Add event to the event queue.
 				uint64_t delay = t.isWrite ? LAYER1_DATA_DELAY : LAYER1_COMMAND_DELAY;
+				delay = delay / LAYER1_LANES;
 				TransactionEvent e (LAYER1_SEND_EVENT, t, currentClockCycle + delay);
 				Add_Event(e);
 
@@ -316,6 +318,7 @@ namespace PCISSD
 
 				// Add event to the event queue.
 				uint64_t delay = t.isWrite ? LAYER2_COMMAND_DELAY : LAYER2_DATA_DELAY;
+				delay = delay / LAYER2_LANES;
 				TransactionEvent e (LAYER2_RETURN_EVENT, t, currentClockCycle + delay);
 				Add_Event(e);
 
@@ -339,6 +342,7 @@ namespace PCISSD
 
 				// Add event to the event queue.
 				uint64_t delay = t.isWrite ? LAYER2_DATA_DELAY : LAYER2_COMMAND_DELAY;
+				delay = delay / LAYER2_LANES;
 				TransactionEvent e (LAYER2_SEND_EVENT, t, currentClockCycle + delay);
 				Add_Event(e);
 
@@ -463,5 +467,12 @@ namespace PCISSD
 			}
 		}
 	}
+
+	// static allocator for the library interface
+	PCI_SSD_System *getInstance(uint id)
+	{
+		return new PCI_SSD_System(id);
+	}
+
 
 }

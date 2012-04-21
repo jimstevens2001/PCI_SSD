@@ -49,7 +49,7 @@ namespace PCISSD
 		{
 			isWrite = w;
 			addr = a;
-			orig_addr = a;
+			orig_addr = o;
 		}
 	};
 

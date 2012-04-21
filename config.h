@@ -36,7 +36,7 @@
 // Set options here
 
 // Enable debugging output.
-#define DEBUG 1
+#define DEBUG 0
 
 // Define clock ratio EXTERNAL_CLOCK:INTERNAL_CLOCK.
 // For example, if this module is to run at 1 GHz while the cpu is 
@@ -51,7 +51,7 @@
 // PCI 2.0 => PCI2, PCI 3.0 => PCI3, DMI 2.0 => DMI2, none => NONEL1
 #define DMI2 1
 
-// Specify the number of lanes.
+// Specify the number of lanes in Layer 1.
 // This only applies to PCI buses. Otherwise it should be 1.
 // Valid lane counts are 1, 2, 4, 8, or 16.
 #define LAYER1_LANES 1
@@ -59,8 +59,14 @@
 
 // Specify delays for Layer 1 (SATA 2, SATA 3, or none)
 // All delays assume a command packet of 16 bytes and a data packet of 528 bytes.
-// SATA 2.0 => SATA2, SATA2 3.0 => SATA3, none => NONEL2
-#define SATA2 1
+// SATA 2.0 => SATA2, SATA 3.0 => SATA3, none => NONEL2
+#define SATA3 1
+
+// Specify the number of lanes in Layer 2.
+// This applies to PCIe SSDs that have multple SATA links.
+// If you are not simulating this situation, then set it to 1.
+// Valid lane counts are 1, 2, 4, 8, or 16.
+#define LAYER2_LANES 1
 
 ////////////////////////////////////////////////////////////////////
 // Parameters below this point should never change.
