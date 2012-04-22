@@ -61,12 +61,16 @@ namespace PCISSD
 		void Retry_Event(TransactionEvent e);
 
 		void Process_Layer1();
-		void Process_Layer1_Send_Event(TransactionEvent e);
-		void Process_Layer1_Return_Event(TransactionEvent e);
+		void Layer1_Send_Event_Start(Transaction t);
+		void Layer1_Return_Event_Start(Transaction t);
+		void Layer1_Send_Event_Done(TransactionEvent e);
+		void Layer1_Return_Event_Done(TransactionEvent e);
 
 		void Process_Layer2();
-		void Process_Layer2_Send_Event(TransactionEvent e);
-		void Process_Layer2_Return_Event(TransactionEvent e);
+		void Layer2_Send_Event_Start(Transaction t);
+		void Layer2_Return_Event_Start(Transaction t);
+		void Layer2_Send_Event_Done(TransactionEvent e);
+		void Layer2_Return_Event_Done(TransactionEvent e);
 
 		void handle_hybridsim_callback(bool isWrite, uint64_t addr);
 

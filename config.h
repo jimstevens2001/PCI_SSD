@@ -65,6 +65,10 @@
 // Valid lane counts are 1, 2, 4, 8, or 16.
 #define LAYER1_LANES 1
 
+// Specify whether layer 1 should use half duplex (0) or full duplex (1).
+// Note: All of the current layer 1 interfaces (PCI and DMI) are full duplex.
+#define LAYER1_FULL_DUPLEX 1
+
 
 // Specify delays for Layer 1 (SATA 2, SATA 3, or none)
 // All delays assume a command packet of 16 bytes and a data packet of 528 bytes.
@@ -76,6 +80,12 @@
 // If you are not simulating this situation, then set it to 1.
 // Valid lane counts are 1, 2, 4, 8, or 16.
 #define LAYER2_LANES 1
+
+// Specify whether layer 2 should use half duplex (0) or full duplex (1).
+// Note: All of the current layer2 interfaces are half duplex.
+// SAS might be supported in the future and it is full duplex.
+#define LAYER2_FULL_DUPLEX 0
+
 
 ////////////////////////////////////////////////////////////////////
 // Parameters below this point should never change.
@@ -138,23 +148,6 @@
 #define SECTOR_ALIGN(addr) ((addr / SECTOR_SIZE) * SECTOR_SIZE)
 
 
-
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <list>
-#include <set>
-#include <unordered_map>
-#include <sstream>
-#include <stdint.h>
-#include <assert.h>
-
-using namespace std;
-
-// External Interface for HybridSim
-#include <HybridSim.h>
-
-#include "Transaction.h"
-#include "util.h"
+#include "common.h"
 
 #endif
