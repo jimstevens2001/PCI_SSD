@@ -52,7 +52,9 @@ namespace PCISSD
 		void HybridSim_Read_Callback(uint id, uint64_t addr, uint64_t cycle);
 		void HybridSim_Write_Callback(uint id, uint64_t addr, uint64_t cycle);
 
+
 		void update_internal();
+		void hybridsim_update_internal();
 
 		void Process_Event_Queue();
 		void Add_Event(TransactionEvent e);
@@ -66,7 +68,9 @@ namespace PCISSD
 		void Process_Layer2_Send_Event(TransactionEvent e);
 		void Process_Layer2_Return_Event(TransactionEvent e);
 
-		void handle_callback(bool isWrite, uint64_t addr);
+		void handle_hybridsim_callback(bool isWrite, uint64_t addr);
+
+		void issue_external_callback(bool isWrite, uint64_t orig_addr);
 
 
 		// Internal state
@@ -78,6 +82,7 @@ namespace PCISSD
 		ClockDomain::ClockDomainCrosser *clockdomain;
 
 		HybridSim::HybridSystem *hybridsim;
+		ClockDomain::ClockDomainCrosser *hybridsim_clockdomain;
 
 		// State to save while HybridSim is doing its thing.
 		unordered_map<uint64_t, Transaction> hybridsim_transactions; // Outstanding sector transactions.

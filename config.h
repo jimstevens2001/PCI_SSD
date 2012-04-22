@@ -36,15 +36,24 @@
 // Set options here
 
 // Enable debugging output.
-#define DEBUG 0
+#define DEBUG 1
 
-// Define clock ratio EXTERNAL_CLOCK:INTERNAL_CLOCK.
+// Define clock ratio.
+// This means the update_internal will be called INTERNAL_CLOCK times
+// for every EXTERNAL_CLOCK calls to update.
 // For example, if this module is to run at 1 GHz while the cpu is 
-// running at 2 Ghz, then the ratio would be 2:1.
+// running at 2 Ghz, then INTERNAL_CLOCK should be 1 and EXTERNAL_CLOCK should
+// be 2.
 // Note: Keep the internal clock running at 1 GHz, since the delays below
 // are specified in terms of a 1 ns clock cycle time.
-#define EXTERNAL_CLOCK 2
 #define INTERNAL_CLOCK 1
+#define EXTERNAL_CLOCK 2
+
+// Define a clock ratio for HybridSim.
+// HybridSim needs to be called 2 times for every 3 times this module is updated
+// since this module runs at 1 GHz and HybridSim runs at 667 MHz.
+#define HYBRIDSIM_CLOCK_1 2
+#define HYBRIDSIM_CLOCK_2 3
 
 // Specify delays for Layer 1 (PCI 2.0, PCI 3.0, DMI 2.0, or none)
 // All delays assume a command packet of 16 bytes and a data packet of 528 bytes.

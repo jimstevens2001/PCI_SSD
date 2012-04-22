@@ -50,6 +50,10 @@ namespace PCISSD
         HybridSim::TransactionCompleteCB *read_cb = new hybridsim_callback_t(this, &PCI_SSD_System::HybridSim_Read_Callback);
         HybridSim::TransactionCompleteCB *write_cb = new hybridsim_callback_t(this, &PCI_SSD_System::HybridSim_Write_Callback);
 		hybridsim->RegisterCallbacks(read_cb, write_cb);
+
+		// Set up HybridSim's clock domain.
+		ClockDomain::ClockUpdateCB *hybridsim_cd_callback = new ClockDomain::Callback<PCI_SSD_System, void>(this, &PCI_SSD_System::hybridsim_update_internal);
+		hybridsim_clockdomain = new ClockDomain::ClockDomainCrosser(HYBRIDSIM_CLOCK_1, HYBRIDSIM_CLOCK_2, hybridsim_cd_callback);
 	}
 
 
@@ -106,13 +110,13 @@ namespace PCISSD
 
 	void PCI_SSD_System::HybridSim_Read_Callback(uint id, uint64_t addr, uint64_t cycle)
 	{
-		handle_callback(false, addr);
+		handle_hybridsim_callback(false, addr);
 	}
 
 
 	void PCI_SSD_System::HybridSim_Write_Callback(uint id, uint64_t addr, uint64_t cycle)
 	{
-		handle_callback(true, addr);
+		handle_hybridsim_callback(true, addr);
 	}
 
 
@@ -132,8 +136,10 @@ namespace PCISSD
 		// Do processing for event queue
 		Process_Event_Queue();
 
-		// Tell HybridSim to update
-		hybridsim->update();
+		// Call update for HybridSim.
+		// This uses a clock domain crosser due to the different clock rates.
+		// The callback is hybridsim_update_internal.
+		hybridsim_clockdomain->update();
 
 		// Increment clock cycle counter.
 		currentClockCycle++;
@@ -149,6 +155,13 @@ namespace PCISSD
 		}
 	}
 
+
+	void PCI_SSD_System::hybridsim_update_internal()
+	{
+		// Call HybridSim at the appropriate clock rate.
+		// Ratio of call is HYBRIDSIM_CLOCK_1 : HYBRIDSIM_CLOCK_2
+		hybridsim->update();
+	}
 
 
 
@@ -288,18 +301,10 @@ namespace PCISSD
 		pending_sectors.erase(aligned_sector_addr);
 		assert(pending_sectors.count(aligned_sector_addr) == 0);
 
-		// Call the appropriate callback.
+		// Issue the external callback.
 		// Use the orig_addr since this is the unaligned original address that the caller expects.
-		if (e.trans.isWrite)
-		{
-			if (WriteDone != NULL)
-				(*WriteDone)(systemID, e.trans.orig_addr, currentClockCycle);
-		}
-		else
-		{
-			if (ReadDone != NULL)
-				(*ReadDone)(systemID, e.trans.orig_addr, currentClockCycle);
-		}
+		issue_external_callback(e.trans.isWrite, e.trans.orig_addr);
+
 	}
 
 	void PCI_SSD_System::Process_Layer2()
@@ -417,7 +422,7 @@ namespace PCISSD
 	}
 
 
-	void PCI_SSD_System::handle_callback(bool isWrite, uint64_t addr)
+	void PCI_SSD_System::handle_hybridsim_callback(bool isWrite, uint64_t addr)
 	{
 		// Compute the base address.
 		uint64_t base_address = SECTOR_ALIGN(addr);
@@ -466,6 +471,16 @@ namespace PCISSD
 				cout << currentClockCycle << " : Added transaction to layer2_return_queue: (" << t.isWrite << ", " << t.addr << ")\n";
 			}
 		}
+	}
+
+	void PCI_SSD_System::issue_external_callback(bool isWrite, uint64_t orig_addr)
+	{
+		// Select the appropriate callback method pointer.
+		TransactionCompleteCB *cb = isWrite ? WriteDone : ReadDone;
+
+		// Call the callback if it is not null.
+		if (cb != NULL)
+			(*cb)(systemID, orig_addr, currentClockCycle);
 	}
 
 	// static allocator for the library interface
