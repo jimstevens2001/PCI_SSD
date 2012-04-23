@@ -67,6 +67,7 @@ namespace PCISSD
 		void Layer2_Send_Event_Done(TransactionEvent e);
 		void Layer2_Return_Event_Done(TransactionEvent e);
 
+		void handle_hybridsim_add_transaction(Transaction t);
 		void handle_hybridsim_callback(bool isWrite, uint64_t addr);
 
 		void issue_external_callback(bool isWrite, uint64_t orig_addr);

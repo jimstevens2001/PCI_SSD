@@ -48,9 +48,15 @@ namespace PCISSD
 		void Add_Send_Transaction(Transaction t);
 		void Add_Return_Transaction(Transaction t);
 
+		void Send_Event_Done(Transaction t);
+		void Return_Event_Done(Transaction t);
+
 		// Internal functions
 		void Send_Event_Start(Transaction t);
 		void Return_Event_Start(Transaction t);
+
+		void Event_Start(Transaction t, uint64_t write_delay, uint64_t read_delay, TransactionEventType event_type, string type);
+		void Event_Done(Transaction t, string type);
 
 
 		// Parameters
