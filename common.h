@@ -47,6 +47,8 @@ using namespace std;
 // External Interface for HybridSim
 #include <HybridSim.h>
 
+#include "ClockDomain.h"
+#include "CallbackPCI.h"
 #include "Transaction.h"
 #include "util.h"
 

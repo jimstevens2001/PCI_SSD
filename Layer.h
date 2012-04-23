@@ -28,77 +28,45 @@
 * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *********************************************************************************/
 
+#ifndef PCI_SSD_LAYER_H
+#define PCI_SSD_LAYER_H
 
-#ifndef PCI_SSD_SYSTEM_H
-#define PCI_SSD_SYSTEM_H
-
-#include "Layer.h"
 #include "common.h"
-#include "config.h"
 
 namespace PCISSD
 {
-	class PCI_SSD_System
+	// Forward declare.
+	class PCI_SSD_System;
+
+	class Layer
 	{
 		public:
-		PCI_SSD_System(uint id);
-		~PCI_SSD_System();
-		bool addTransaction(bool isWrite, uint64_t addr);
-		bool WillAcceptTransaction();
+		Layer(PCI_SSD_System *parent, uint64_t data_delay, uint64_t command_delay, uint64_t num_lanes, 
+				TransactionEventType send_event_type, TransactionEventType return_event_type, string layer_name);
+
 		void update();
-		void RegisterCallbacks(TransactionCompleteCB *readDone, TransactionCompleteCB *writeDone);
-		void printLogfile();
+		void Add_Send_Transaction(Transaction t);
+		void Add_Return_Transaction(Transaction t);
 
 		// Internal functions
-		void HybridSim_Read_Callback(uint id, uint64_t addr, uint64_t cycle);
-		void HybridSim_Write_Callback(uint id, uint64_t addr, uint64_t cycle);
+		void Send_Event_Start(Transaction t);
+		void Return_Event_Start(Transaction t);
 
 
-		void update_internal();
-		void hybridsim_update_internal();
-
-		void Process_Event_Queue();
-		void Add_Event(TransactionEvent e);
-		void Retry_Event(TransactionEvent e);
-
-		void Layer1_Send_Event_Done(TransactionEvent e);
-		void Layer1_Return_Event_Done(TransactionEvent e);
-
-		void Layer2_Send_Event_Done(TransactionEvent e);
-		void Layer2_Return_Event_Done(TransactionEvent e);
-
-		void handle_hybridsim_callback(bool isWrite, uint64_t addr);
-
-		void issue_external_callback(bool isWrite, uint64_t orig_addr);
-
+		// Parameters
+		PCI_SSD_System *parent;
+		uint64_t data_delay;
+		uint64_t command_delay;
+		uint64_t num_lanes;
+		TransactionEventType send_event_type;
+		TransactionEventType return_event_type;
+		string layer_name;
 
 		// Internal state
-        TransactionCompleteCB *ReadDone;
-        TransactionCompleteCB *WriteDone;
-		uint systemID;
-
-		uint64_t currentClockCycle;
-		ClockDomain::ClockDomainCrosser *clockdomain;
-
-		HybridSim::HybridSystem *hybridsim;
-		ClockDomain::ClockDomainCrosser *hybridsim_clockdomain;
-
-		// State to save while HybridSim is doing its thing.
-		unordered_map<uint64_t, Transaction> hybridsim_transactions; // Outstanding sector transactions.
-		unordered_map<uint64_t, set<uint64_t>> hybridsim_accesses; // Outstanding acceses to HybridSim for each sector.
-
-		set<uint64_t> pending_sectors; // Simple rule: only one instance of each address at a time, otherwise, this is an error.
-
-		list<TransactionEvent> event_queue;
-
-		Layer *layer1;
-
-		Layer *layer2;
-
+		bool busy;
+		list<Transaction> send_queue;
+		list<Transaction> return_queue;
 	};
-
-	PCI_SSD_System *getInstance(uint id);
-
 }
 
 #endif

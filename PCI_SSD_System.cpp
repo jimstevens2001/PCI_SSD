@@ -54,6 +54,19 @@ namespace PCISSD
 		// Set up HybridSim's clock domain.
 		ClockDomain::ClockUpdateCB *hybridsim_cd_callback = new ClockDomain::Callback<PCI_SSD_System, void>(this, &PCI_SSD_System::hybridsim_update_internal);
 		hybridsim_clockdomain = new ClockDomain::ClockDomainCrosser(HYBRIDSIM_CLOCK_1, HYBRIDSIM_CLOCK_2, hybridsim_cd_callback);
+
+		// Set up layers.
+		layer1 = new Layer(this, LAYER1_DATA_DELAY, LAYER1_COMMAND_DELAY, LAYER1_LANES, LAYER1_SEND_EVENT, LAYER1_RETURN_EVENT, "Layer 1");
+		layer2 = new Layer(this, LAYER2_DATA_DELAY, LAYER2_COMMAND_DELAY, LAYER2_LANES, LAYER2_SEND_EVENT, LAYER2_RETURN_EVENT, "Layer 2");
+	}
+
+	PCI_SSD_System::~PCI_SSD_System()
+	{
+		delete clockdomain;
+		delete hybridsim_clockdomain;
+		delete layer1;
+		delete layer2;
+		delete hybridsim;
 	}
 
 
@@ -79,7 +92,7 @@ namespace PCISSD
 
 		// Create the transaction and place it in the Layer 1 Send Queue.
 		Transaction t(isWrite, aligned_sector_addr, addr);
-		layer1_send_queue.push_back(t);
+		layer1->Add_Send_Transaction(t);
 
 		if (DEBUG)
 		{
@@ -128,10 +141,10 @@ namespace PCISSD
 	void PCI_SSD_System::update_internal()
 	{
 		// Do Processing for layer 2
-		Process_Layer2();
+		layer2->update();
 
 		// Do processing for layer 1
-		Process_Layer1();
+		layer1->update();
 
 		// Do processing for event queue
 		Process_Event_Queue();
@@ -149,8 +162,10 @@ namespace PCISSD
 			if (currentClockCycle % 10000 == 0)
 			{
 				cout << currentClockCycle << " : length(event_queue)=" << event_queue.size() 
-						<< " length(layer1_send_queue)=" << layer1_send_queue.size() 
-						<< " length(layer1_return_queue)=" << layer1_return_queue.size() << "\n";
+						<< " length(layer1.send_queue)=" << layer1->send_queue.size() 
+						<< " length(layer1.return_queue)=" << layer1->return_queue.size()
+						<< " length(layer2.send_queue)=" << layer2->send_queue.size()
+						<< " length(layer2.return_queue)=" << layer2->return_queue.size() << "\n";
 			}
 		}
 	}
@@ -211,81 +226,13 @@ namespace PCISSD
 	}
 
 
-	// Layer 1 implementation
-	void PCI_SSD_System::Process_Layer1()
-	{
-		if (!layer1_busy)
-		{
-			// Check return queue
-			// Return queue has strict priority over send queue
-			if (!layer1_return_queue.empty())
-			{
-				// Put this transaction in the event queue with appropriate delay as timer.
-
-				// Extract the transaction at the front of the queue.
-				Transaction t = layer1_return_queue.front();
-				layer1_return_queue.pop_front();
-
-				Layer1_Return_Event_Start(t);
-			}
-
-			// Check send queue
-			else if (!layer1_send_queue.empty())
-			{
-				// Put this transaction in the event queue with appropriate delay as timer.
-
-				// Extract the transaction at the front of the queue.
-				Transaction t = layer1_send_queue.front();
-				layer1_send_queue.pop_front();
-
-				Layer1_Send_Event_Start(t);
-			}
-		}
-	}
-
-
-	void PCI_SSD_System::Layer1_Send_Event_Start(Transaction t)
-	{
-		// Add event to the event queue.
-		uint64_t delay = t.isWrite ? LAYER1_DATA_DELAY : LAYER1_COMMAND_DELAY;
-		delay = delay / LAYER1_LANES;
-		TransactionEvent e (LAYER1_SEND_EVENT, t, currentClockCycle + delay);
-		Add_Event(e);
-
-		// Set the busy indicator for layer 1.
-		layer1_busy = true;
-
-		if (DEBUG)
-		{
-			cout << currentClockCycle << " : Starting LAYER1 SEND for transaction: (" << t.isWrite << ", " << t.addr << ")\n";
-		}
-	}
-
-	void PCI_SSD_System::Layer1_Return_Event_Start(Transaction t)
-	{
-		// Add event to the event queue.
-		uint64_t delay = t.isWrite ? LAYER1_COMMAND_DELAY : LAYER1_DATA_DELAY;
-		delay = delay / LAYER1_LANES;
-		TransactionEvent e (LAYER1_RETURN_EVENT, t, currentClockCycle + delay);
-		Add_Event(e);
-
-		// Set the busy indicator for layer 1.
-		layer1_busy = true;
-
-		if (DEBUG)
-		{
-			cout << currentClockCycle << " : Starting LAYER1 RETURN for transaction: (" << t.isWrite << ", " << t.addr << ")\n";
-		}
-
-	}
-
 	void PCI_SSD_System::Layer1_Send_Event_Done(TransactionEvent e)
 	{
 		assert(e.type == LAYER1_SEND_EVENT);
 
 		// Send transaction to layer 2
-		layer2_send_queue.push_back(e.trans);
-		layer1_busy = false;
+		layer2->Add_Send_Transaction(e.trans);
+		layer1->busy = false;
 
 		if (DEBUG)
 		{
@@ -303,7 +250,7 @@ namespace PCISSD
 			cout << currentClockCycle << " : Finished LAYER1 RETURN for transaction: (" << e.trans.isWrite << ", " << e.trans.addr << ")\n";
 		}
 
-		layer1_busy = false;
+		layer1->busy = false;
 
 		// Remove from the pending_sectors set.
 		uint64_t aligned_sector_addr = SECTOR_ALIGN(e.trans.addr);
@@ -317,78 +264,12 @@ namespace PCISSD
 
 	}
 
-	void PCI_SSD_System::Process_Layer2()
-	{
-		if (!layer2_busy)
-		{
-			// Check return queue
-			// Return queue has strict priority over send queue
-			if (!layer2_return_queue.empty())
-			{
-				// Put this transaction in the event queue with appropriate delay as timer.
-
-				// Extract the transaction at the front of the queue.
-				Transaction t = layer2_return_queue.front();
-				layer2_return_queue.pop_front();
-
-				Layer2_Return_Event_Start(t);
-			}
-
-			// Check send queue
-			else if (!layer2_send_queue.empty())
-			{
-				// Put this transaction in the event queue with appropriate delay as timer.
-
-				// Extract the transaction at the front of the queue.
-				Transaction t = layer2_send_queue.front();
-				layer2_send_queue.pop_front();
-
-				Layer2_Send_Event_Start(t);
-			}
-		}
-
-	}
-
-
-	void PCI_SSD_System::Layer2_Send_Event_Start(Transaction t)
-	{
-		// Add event to the event queue.
-		uint64_t delay = t.isWrite ? LAYER2_DATA_DELAY : LAYER2_COMMAND_DELAY;
-		delay = delay / LAYER2_LANES;
-		TransactionEvent e (LAYER2_SEND_EVENT, t, currentClockCycle + delay);
-		Add_Event(e);
-
-		// Set the busy indicator for layer 1.
-		layer2_busy = true;
-
-		if (DEBUG)
-		{
-			cout << currentClockCycle << " : Starting LAYER2 SEND for transaction: (" << t.isWrite << ", " << t.addr << ")\n";
-		}
-	}
-
-
-	void PCI_SSD_System::Layer2_Return_Event_Start(Transaction t)
-	{
-		// Add event to the event queue.
-		uint64_t delay = t.isWrite ? LAYER2_COMMAND_DELAY : LAYER2_DATA_DELAY;
-		delay = delay / LAYER2_LANES;
-		TransactionEvent e (LAYER2_RETURN_EVENT, t, currentClockCycle + delay);
-		Add_Event(e);
-
-		// Set the busy indicator for layer 1.
-		layer2_busy = true;
-
-		if (DEBUG)
-		{
-			cout << currentClockCycle << " : Starting LAYER2 RETURN for transaction: (" << t.isWrite << ", " << t.addr << ")\n";
-		}
-	}
-
 
 	void PCI_SSD_System::Layer2_Send_Event_Done(TransactionEvent e)
 	{
 		assert(e.type == LAYER2_SEND_EVENT);
+
+		// TODO: Move HybridSim interaction into a separate function.
 
 		// This code sends out HYBRIDSIM_TRANSACTIONS transactions for each sector,
 		// since HybridSim transactions are at a smaller granularity than a sector.
@@ -418,7 +299,7 @@ namespace PCISSD
 		}
 
 		// Layer 2 channel is no longer busy.
-		layer2_busy = false;
+		layer2->busy = false;
 
 		if (DEBUG)
 		{
@@ -433,8 +314,10 @@ namespace PCISSD
 		assert(e.type == LAYER2_RETURN_EVENT);
 
 		// Send transaction back to layer 1
-		layer1_return_queue.push_back(e.trans);
-		layer2_busy = false;
+		layer1->Add_Return_Transaction(e.trans);
+		
+
+		layer2->busy = false;
 
 		if (DEBUG)
 		{
@@ -485,7 +368,7 @@ namespace PCISSD
 			assert(hybridsim_accesses.count(base_address) == 0);
 
 			// Put transaction in appropriate return queue.
-			layer2_return_queue.push_back(t);
+			layer2->Add_Return_Transaction(t);
 
 			if (DEBUG)
 			{

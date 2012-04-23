@@ -58,12 +58,12 @@
 // Specify delays for Layer 1 (PCI 2.0, PCI 3.0, DMI 2.0, or none)
 // All delays assume a command packet of 16 bytes and a data packet of 528 bytes.
 // PCI 2.0 => PCI2, PCI 3.0 => PCI3, DMI 2.0 => DMI2, none => NONEL1
-#define DMI2 1
+#define PCI3 1
 
 // Specify the number of lanes in Layer 1.
 // This only applies to PCI buses. Otherwise it should be 1.
 // Valid lane counts are 1, 2, 4, 8, or 16.
-#define LAYER1_LANES 1
+#define LAYER1_LANES 16
 
 // Specify whether layer 1 should use half duplex (0) or full duplex (1).
 // Note: All of the current layer 1 interfaces (PCI and DMI) are full duplex.
@@ -73,7 +73,7 @@
 // Specify delays for Layer 1 (SATA 2, SATA 3, or none)
 // All delays assume a command packet of 16 bytes and a data packet of 528 bytes.
 // SATA 2.0 => SATA2, SATA 3.0 => SATA3, none => NONEL2
-#define SATA3 1
+#define NONEL2 1
 
 // Specify the number of lanes in Layer 2.
 // This applies to PCIe SSDs that have multple SATA links.
@@ -147,7 +147,5 @@
 #define HYBRIDSIM_TRANSACTIONS (SECTOR_SIZE / HYBRIDSIM_TRANSACTION_SIZE)
 #define SECTOR_ALIGN(addr) ((addr / SECTOR_SIZE) * SECTOR_SIZE)
 
-
-#include "common.h"
 
 #endif
