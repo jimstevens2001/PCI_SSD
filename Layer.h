@@ -41,7 +41,7 @@ namespace PCISSD
 	class Layer
 	{
 		public:
-		Layer(PCI_SSD_System *parent, uint64_t data_delay, uint64_t command_delay, uint64_t num_lanes, 
+		Layer(PCI_SSD_System *parent, uint64_t data_delay, uint64_t command_delay, uint64_t num_lanes, bool full_duplex,
 				TransactionEventType send_event_type, TransactionEventType return_event_type, string layer_name);
 
 		void update();
@@ -64,12 +64,14 @@ namespace PCISSD
 		uint64_t data_delay;
 		uint64_t command_delay;
 		uint64_t num_lanes;
+		bool full_duplex;
 		TransactionEventType send_event_type;
 		TransactionEventType return_event_type;
 		string layer_name;
 
 		// Internal state
-		bool busy;
+		bool send_busy;
+		bool return_busy;
 		list<Transaction> send_queue;
 		list<Transaction> return_queue;
 	};

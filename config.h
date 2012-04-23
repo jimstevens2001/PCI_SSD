@@ -63,11 +63,11 @@
 // Specify the number of lanes in Layer 1.
 // This only applies to PCI buses. Otherwise it should be 1.
 // Valid lane counts are 1, 2, 4, 8, or 16.
-#define LAYER1_LANES 16
+#define LAYER1_LANES 1
 
 // Specify whether layer 1 should use half duplex (0) or full duplex (1).
 // Note: All of the current layer 1 interfaces (PCI and DMI) are full duplex.
-#define LAYER1_FULL_DUPLEX 1
+#define LAYER1_FULL_DUPLEX 0
 
 
 // Specify delays for Layer 1 (SATA 2, SATA 3, or none)

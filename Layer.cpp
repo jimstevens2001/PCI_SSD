@@ -4,7 +4,7 @@
 namespace PCISSD
 {
 
-	Layer::Layer(PCI_SSD_System *parent, uint64_t data_delay, uint64_t command_delay, uint64_t num_lanes, 
+	Layer::Layer(PCI_SSD_System *parent, uint64_t data_delay, uint64_t command_delay, uint64_t num_lanes, bool full_duplex,
 			TransactionEventType send_event_type, TransactionEventType return_event_type, string layer_name)
 	{
 		assert(parent != NULL);
@@ -13,37 +13,49 @@ namespace PCISSD
 		this->data_delay = data_delay;
 		this->command_delay = command_delay;
 		this->num_lanes = num_lanes;
+		this->full_duplex = full_duplex;
 		this->send_event_type = send_event_type;
 		this->return_event_type = return_event_type;
 		this->layer_name = layer_name;
+
+		send_busy = false;
+		return_busy = false;
 	}
 
 	void Layer::update()
 	{
-		if (!busy)
+		// If we are in half_duplex mode, then we are busy for both send and return
+		// if either path is busy.
+		bool half_duplex_busy = (!full_duplex) && (send_busy || return_busy);
+
+		// Check return queue
+		// Return queue has strict priority over send queue in half duplex mode, so we check it first.
+		if (!(half_duplex_busy || return_busy))
 		{
-			// Check return queue
-			// Return queue has strict priority over send queue
 			if (!return_queue.empty())
 			{
-				// Put this transaction in the event queue with appropriate delay as timer.
-
 				// Extract the transaction at the front of the queue.
 				Transaction t = return_queue.front();
 				return_queue.pop_front();
 
+				// Put this transaction in the event queue with appropriate delay as timer.
 				Return_Event_Start(t);
 			}
+		}
 
-			// Check send queue
-			else if (!send_queue.empty())
+		// Recompute half_deplux_busy in case a return event was triggered.
+		half_duplex_busy = (!full_duplex) && (send_busy || return_busy);
+
+		// Check send queue
+		if (!(half_duplex_busy || send_busy))
+		{
+			if (!send_queue.empty())
 			{
-				// Put this transaction in the event queue with appropriate delay as timer.
-
 				// Extract the transaction at the front of the queue.
 				Transaction t = send_queue.front();
 				send_queue.pop_front();
 
+				// Put this transaction in the event queue with appropriate delay as timer.
 				Send_Event_Start(t);
 			}
 		}
@@ -82,12 +94,16 @@ namespace PCISSD
 	void Layer::Event_Start(Transaction t, uint64_t write_delay, uint64_t read_delay, TransactionEventType event_type, string type)
 	{
 		// Add event to the event queue.
-		uint64_t delay = t.isWrite ? read_delay : write_delay;
+		uint64_t delay = t.isWrite ? write_delay : read_delay;
 		delay = delay / num_lanes;
 		TransactionEvent e (event_type, t, parent->currentClockCycle + delay);
 		parent->Add_Event(e);
 
-		busy = true;
+		// Set the appropriate busy flag.
+		if (type == "SEND")
+			send_busy = true;
+		else
+			return_busy = true;
 
 		if (DEBUG)
 		{
@@ -109,7 +125,11 @@ namespace PCISSD
 
 	void Layer::Event_Done(Transaction t, string type)
 	{
-		busy = false;
+		// Unset the appropriate busy flag.
+		if (type == "SEND")
+			send_busy = false;
+		else
+			return_busy = false;
 
 		if (DEBUG)
 		{
@@ -117,3 +137,4 @@ namespace PCISSD
 		}
 	}
 }
+
