@@ -99,13 +99,16 @@
 // Specify command size for layers.
 #define COMMAND_SIZE 16
 
+// Specify protocol efficiency percentage.
+#define PROTOCOL_EFFICIENCY 90
+
 // Compute layer 1 delays.
-#define LAYER1_COMMAND_DELAY compute_interface_delay(COMMAND_SIZE, LAYER1_TYPE)
-#define LAYER1_DATA_DELAY compute_interface_delay(COMMAND_SIZE + SECTOR_SIZE, LAYER1_TYPE)
+#define LAYER1_COMMAND_DELAY compute_interface_delay(COMMAND_SIZE, LAYER1_TYPE, PROTOCOL_EFFICIENCY)
+#define LAYER1_DATA_DELAY compute_interface_delay(COMMAND_SIZE + SECTOR_SIZE, LAYER1_TYPE, PROTOCOL_EFFICIENCY)
 
 // Compute layer 2 delays.
-#define LAYER2_COMMAND_DELAY compute_interface_delay(COMMAND_SIZE, LAYER2_TYPE)
-#define LAYER2_DATA_DELAY compute_interface_delay(COMMAND_SIZE + SECTOR_SIZE, LAYER2_TYPE)
+#define LAYER2_COMMAND_DELAY compute_interface_delay(COMMAND_SIZE, LAYER2_TYPE, PROTOCOL_EFFICIENCY)
+#define LAYER2_DATA_DELAY compute_interface_delay(COMMAND_SIZE + SECTOR_SIZE, LAYER2_TYPE, PROTOCOL_EFFICIENCY)
 
 // Other Derived Parameters
 #define HYBRIDSIM_TRANSACTIONS (SECTOR_SIZE / HYBRIDSIM_TRANSACTION_SIZE)

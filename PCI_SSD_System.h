@@ -100,7 +100,7 @@ namespace PCISSD
 
 	PCI_SSD_System *getInstance(uint id);
 
-	uint64_t compute_interface_delay(uint64_t num_bytes, uint64_t bytes_per_second);
+	uint64_t compute_interface_delay(uint64_t num_bytes, uint64_t bytes_per_second, uint64_t efficiency);
 }
 
 #endif

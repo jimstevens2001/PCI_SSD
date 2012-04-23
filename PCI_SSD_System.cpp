@@ -379,7 +379,7 @@ namespace PCISSD
 	}
 
 	// Helper function to compute the delay in nanoseconds of a layer interface.
-	uint64_t compute_interface_delay(uint64_t num_bytes, uint64_t bytes_per_second)
+	uint64_t compute_interface_delay(uint64_t num_bytes, uint64_t bytes_per_second, uint64_t efficiency)
 	{
 		if (bytes_per_second == 0)
 		{
@@ -388,7 +388,9 @@ namespace PCISSD
 		}
 		else
 		{
-			double in_seconds = (double)(num_bytes) / (double)(bytes_per_second);
+			double efficiency_percentage = double(efficiency) / 100.0;
+			double total_bytes = (double)(num_bytes) / efficiency_percentage;
+			double in_seconds = total_bytes / (double)(bytes_per_second);
 			double in_nanoseconds = in_seconds * 1000000000;
 			return (uint64_t)ceil(in_nanoseconds);
 		}
