@@ -55,82 +55,35 @@
 #define HYBRIDSIM_CLOCK_1 2
 #define HYBRIDSIM_CLOCK_2 3
 
-// Specify delays for Layer 1 (PCI 2.0, PCI 3.0, DMI 2.0, or none)
-// All delays assume a command packet of 16 bytes and a data packet of 528 bytes.
-// PCI 2.0 => PCI2, PCI 3.0 => PCI3, DMI 2.0 => DMI2, none => NONEL1
-#define PCI3 1
 
-// Specify the number of lanes in Layer 1.
-// This only applies to PCI buses. Otherwise it should be 1.
+// Define interface speeds in bytes per second
+#define SATA2 300000000 // SATA 2.0 (300 MB/s, 375 MB/s without PHY overhead) (Also can use this for SAS)
+#define SATA3 600000000 // SATA 3.0 (600 MB/s, 750 MB/s without PHY overhead) (Also can use this for SAS)
+#define PCI2 500000000  // PCIe 2.0 (500 MB/s per lane)
+#define PCI3 1000000000 // PCIe 3.0 (1 GB/s per lane)
+#define DMI2 2500000000 // Intel Direct Media Interface 2.0 (2.5 GB/s)
+#define NONE 0
+
+// Specify interface speeds for Layer 1 and Layer 2.
+#define LAYER1_TYPE PCI3
+#define LAYER2_TYPE NONE
+
+// Specify the number of lanes in each layer.
+// This only applies to PCI buses (or if you want to simulate multiple SATA buses). Otherwise it should be 1.
 // Valid lane counts are 1, 2, 4, 8, or 16.
 #define LAYER1_LANES 1
-
-// Specify whether layer 1 should use half duplex (0) or full duplex (1).
-// Note: All of the current layer 1 interfaces (PCI and DMI) are full duplex.
-#define LAYER1_FULL_DUPLEX 0
-
-
-// Specify delays for Layer 1 (SATA 2, SATA 3, or none)
-// All delays assume a command packet of 16 bytes and a data packet of 528 bytes.
-// SATA 2.0 => SATA2, SATA 3.0 => SATA3, none => NONEL2
-#define NONEL2 1
-
-// Specify the number of lanes in Layer 2.
-// This applies to PCIe SSDs that have multple SATA links.
-// If you are not simulating this situation, then set it to 1.
-// Valid lane counts are 1, 2, 4, 8, or 16.
 #define LAYER2_LANES 1
 
-// Specify whether layer 2 should use half duplex (0) or full duplex (1).
-// Note: All of the current layer2 interfaces are half duplex.
-// SAS might be supported in the future and it is full duplex.
+// Specify whether layers should use half duplex (0) or full duplex (1).
+// Layer 1 Note: All of the current layer 1 interfaces (PCI and DMI) are full duplex.
+// Layer 2 Note: SATA interfaces are half duplex. If you want to simulate SAS, 
+// set SATA as the speed and turn on full duplex mode.
+#define LAYER1_FULL_DUPLEX 1
 #define LAYER2_FULL_DUPLEX 0
 
 
 ////////////////////////////////////////////////////////////////////
 // Parameters below this point should never change.
-
-// PCIe 2.0 (500 MB/s per lane)
-#ifdef PCI2
-#define LAYER1_DATA_DELAY 1056
-#define LAYER1_COMMAND_DELAY 32
-#endif
-
-// PCIe 3.0 (1 GB/s per lane)
-#ifdef PCI3
-#define LAYER1_DATA_DELAY 528
-#define LAYER1_COMMAND_DELAY 16
-#endif
-
-// DMI 2.0 (2.5 GB/s)
-#ifdef DMI2
-#define LAYER1_DATA_DELAY 212
-#define LAYER1_COMMAND_DELAY 7
-#endif
-
-// No delay for Layer 1
-#ifdef NONEL1
-#define LAYER1_DATA_DELAY 0
-#define LAYER1_COMMAND_DELAY 0
-#endif
-
-// SATA 2.0 (375 MB/s)
-#ifdef SATA2
-#define LAYER2_DATA_DELAY 1408
-#define LAYER2_COMMAND_DELAY 43
-#endif
-
-// SATA 3.0 (750 MB/s)
-#ifdef SATA3
-#define LAYER2_DATA_DELAY 704
-#define LAYER2_COMMAND_DELAY 22
-#endif
-
-// No delay for Layer 2
-#ifdef NONEL2
-#define LAYER2_DATA_DELAY 0
-#define LAYER2_COMMAND_DELAY 0
-#endif
 
 
 #define RETRY_DELAY 10
@@ -143,7 +96,18 @@
 #define HYBRIDSIM_TRANSACTION_SIZE 64
 
 
-// Derived Parameters
+// Specify command size for layers.
+#define COMMAND_SIZE 16
+
+// Compute layer 1 delays.
+#define LAYER1_COMMAND_DELAY compute_interface_delay(COMMAND_SIZE, LAYER1_TYPE)
+#define LAYER1_DATA_DELAY compute_interface_delay(COMMAND_SIZE + SECTOR_SIZE, LAYER1_TYPE)
+
+// Compute layer 2 delays.
+#define LAYER2_COMMAND_DELAY compute_interface_delay(COMMAND_SIZE, LAYER2_TYPE)
+#define LAYER2_DATA_DELAY compute_interface_delay(COMMAND_SIZE + SECTOR_SIZE, LAYER2_TYPE)
+
+// Other Derived Parameters
 #define HYBRIDSIM_TRANSACTIONS (SECTOR_SIZE / HYBRIDSIM_TRANSACTION_SIZE)
 #define SECTOR_ALIGN(addr) ((addr / SECTOR_SIZE) * SECTOR_SIZE)
 

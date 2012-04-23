@@ -58,6 +58,11 @@ namespace PCISSD
 		// Set up layers.
 		layer1 = new Layer(this, LAYER1_DATA_DELAY, LAYER1_COMMAND_DELAY, LAYER1_LANES, LAYER1_FULL_DUPLEX, LAYER1_SEND_EVENT, LAYER1_RETURN_EVENT, "Layer 1");
 		layer2 = new Layer(this, LAYER2_DATA_DELAY, LAYER2_COMMAND_DELAY, LAYER2_LANES, LAYER2_FULL_DUPLEX, LAYER2_SEND_EVENT, LAYER2_RETURN_EVENT, "Layer 2");
+		if (DEBUG)
+		{
+			cout << "Layer 1 delays are (data: " << LAYER1_DATA_DELAY << ", command: " << LAYER1_COMMAND_DELAY << ")\n";
+			cout << "Layer 2 delays are (data: " << LAYER2_DATA_DELAY << ", command: " << LAYER2_COMMAND_DELAY << ")\n";
+		}
 	}
 
 	PCI_SSD_System::~PCI_SSD_System()
@@ -372,6 +377,23 @@ namespace PCISSD
 	{
 		return new PCI_SSD_System(id);
 	}
+
+	// Helper function to compute the delay in nanoseconds of a layer interface.
+	uint64_t compute_interface_delay(uint64_t num_bytes, uint64_t bytes_per_second)
+	{
+		if (bytes_per_second == 0)
+		{
+			// For the NONE case.
+			return 0;
+		}
+		else
+		{
+			double in_seconds = (double)(num_bytes) / (double)(bytes_per_second);
+			double in_nanoseconds = in_seconds * 1000000000;
+			return (uint64_t)ceil(in_nanoseconds);
+		}
+	}
+
 }
 
 

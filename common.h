@@ -39,6 +39,7 @@
 #include <set>
 #include <unordered_map>
 #include <sstream>
+#include <math.h>
 #include <stdint.h>
 #include <assert.h>
 
