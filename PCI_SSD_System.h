@@ -96,6 +96,8 @@ namespace PCISSD
 
 		Layer *layer2;
 
+		ofstream debug_file;
+
 	};
 
 	PCI_SSD_System *getInstance(uint id);

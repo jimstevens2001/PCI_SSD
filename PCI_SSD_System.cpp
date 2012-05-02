@@ -36,6 +36,13 @@ namespace PCISSD
 {
 	PCI_SSD_System::PCI_SSD_System(uint id)
 	{
+		debug_file.open(DEBUG_FILE, ios_base::out | ios_base::trunc);
+		if (!debug_file.is_open())
+		{
+			cerr << "ERROR: Debug file " << DEBUG_FILE << " failed to open.\n";
+			abort();
+		}
+
 		systemID = id;
 		hybridsim = HybridSim::getMemorySystemInstance(0, HYBRIDSIM_INI);
 
@@ -60,13 +67,20 @@ namespace PCISSD
 		layer2 = new Layer(this, LAYER2_DATA_DELAY, LAYER2_COMMAND_DELAY, LAYER2_LANES, LAYER2_FULL_DUPLEX, LAYER2_SEND_EVENT, LAYER2_RETURN_EVENT, "Layer 2");
 		if (DEBUG)
 		{
-			cout << "Layer 1 delays are (data: " << LAYER1_DATA_DELAY << ", command: " << LAYER1_COMMAND_DELAY << ")\n";
-			cout << "Layer 2 delays are (data: " << LAYER2_DATA_DELAY << ", command: " << LAYER2_COMMAND_DELAY << ")\n";
+			debug_file << "Layer 1 delays are (data: " << LAYER1_DATA_DELAY << ", command: " << LAYER1_COMMAND_DELAY << ")\n";
+			debug_file << "Layer 2 delays are (data: " << LAYER2_DATA_DELAY << ", command: " << LAYER2_COMMAND_DELAY << ")\n";
+			debug_file.flush();
 		}
 	}
 
 	PCI_SSD_System::~PCI_SSD_System()
 	{
+		if (DEBUG)
+		{
+			debug_file.flush();
+			debug_file.close();
+		}
+
 		delete clockdomain;
 		delete hybridsim_clockdomain;
 		delete layer1;
@@ -86,8 +100,9 @@ namespace PCISSD
 		{
 			if (aligned_sector_addr != addr)
 			{
-				cout << currentClockCycle << ": Unaligned sector arrived (orig: " << addr 
+				debug_file << currentClockCycle << ": Unaligned sector arrived (orig: " << addr 
 						<< ", aligned: " << aligned_sector_addr << ")\n";
+				debug_file.flush();
 			}
 		}
 
@@ -161,11 +176,12 @@ namespace PCISSD
 		{
 			if (currentClockCycle % 10000 == 0)
 			{
-				cout << currentClockCycle << " : length(event_queue)=" << event_queue.size() 
+				debug_file << currentClockCycle << " : length(event_queue)=" << event_queue.size() 
 						<< " length(layer1.send_queue)=" << layer1->send_queue.size() 
 						<< " length(layer1.return_queue)=" << layer1->return_queue.size()
 						<< " length(layer2.send_queue)=" << layer2->send_queue.size()
 						<< " length(layer2.return_queue)=" << layer2->return_queue.size() << "\n";
+				debug_file.flush();
 			}
 		}
 	}
@@ -295,7 +311,8 @@ namespace PCISSD
 
 		if (DEBUG)
 		{
-			cout << currentClockCycle << " : Received callback from HybridSim (" << isWrite << ", " << addr << ")\n";
+			debug_file << currentClockCycle << " : Received callback from HybridSim (" << isWrite << ", " << addr << ")\n";
+			debug_file.flush();
 		}
 		
 		// If the whole sector transaction is done, then send it back up.
@@ -316,7 +333,8 @@ namespace PCISSD
 
 			if (DEBUG)
 			{
-				cout << currentClockCycle << " : Finished HybridSim transactions for base address " << base_address << "\n";
+				debug_file << currentClockCycle << " : Finished HybridSim transactions for base address " << base_address << "\n";
+				debug_file.flush();
 			}
 
 			// Put transaction in appropriate return queue.
@@ -357,7 +375,8 @@ namespace PCISSD
 
 		if (DEBUG)
 		{
-			cout << currentClockCycle << " : Added " << HYBRIDSIM_TRANSACTIONS << " to HybridSim for base address " << base_address << "\n";
+			debug_file << currentClockCycle << " : Added " << HYBRIDSIM_TRANSACTIONS << " to HybridSim for base address " << base_address << "\n";
+			debug_file.flush();
 		}
 	}
 

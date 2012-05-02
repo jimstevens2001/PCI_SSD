@@ -36,7 +36,9 @@
 // Set options here
 
 // Enable debugging output.
-#define DEBUG 0
+#define DEBUG 1
+#define DEBUG_FILE "debug_pci_ssd.txt"
+//#define DEBUG_FILE "/dev/stdout"
 
 // Define clock ratio.
 // This means the update_internal will be called INTERNAL_CLOCK times

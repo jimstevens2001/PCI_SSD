@@ -67,7 +67,9 @@ namespace PCISSD
 
 		if (DEBUG)
 		{
-			cout << parent->currentClockCycle << " : Added transaction to " << layer_name << " send queue: (" << t.isWrite << ", " << t.addr << ")\n";
+			(parent->debug_file) << parent->currentClockCycle << " : Added transaction to " << layer_name << 
+					" send queue: (" << t.isWrite << ", " << t.addr << ")\n";
+			parent->debug_file.flush();
 		}
 	}
 
@@ -77,7 +79,9 @@ namespace PCISSD
 
 		if (DEBUG)
 		{
-			cout << parent->currentClockCycle << " : Added transaction to " << layer_name << " return queue: (" << t.isWrite << ", " << t.addr << ")\n";
+			(parent->debug_file) << parent->currentClockCycle << " : Added transaction to " << layer_name << 
+					" return queue: (" << t.isWrite << ", " << t.addr << ")\n";
+			parent->debug_file.flush();
 		}
 	}
 
@@ -107,7 +111,9 @@ namespace PCISSD
 
 		if (DEBUG)
 		{
-			cout << parent->currentClockCycle << " : Starting " << layer_name << " " << type << " for transaction: (" << t.isWrite << ", " << t.addr << ")\n";
+			(parent->debug_file) << parent->currentClockCycle << " : Starting " << layer_name << " " << type << 
+					" for transaction: (" << t.isWrite << ", " << t.addr << ")\n";
+			parent->debug_file.flush();
 		}
 
 	}
@@ -133,7 +139,9 @@ namespace PCISSD
 
 		if (DEBUG)
 		{
-			cout << parent->currentClockCycle << " : Finished " << layer_name << " " << type << " for transaction: (" << t.isWrite << ", " << t.addr << ")\n";
+			(parent->debug_file) << parent->currentClockCycle << " : Finished " << layer_name << " " << type << 
+					" for transaction: (" << t.isWrite << ", " << t.addr << ")\n";
+			parent->debug_file.flush();
 		}
 	}
 }
