@@ -37,7 +37,7 @@ namespace PCISSD
 	PCI_SSD_System::PCI_SSD_System(uint id)
 	{
 		systemID = id;
-		hybridsim = HybridSim::getMemorySystemInstance(0);
+		hybridsim = HybridSim::getMemorySystemInstance(0, HYBRIDSIM_INI);
 
 		currentClockCycle = 0;
 

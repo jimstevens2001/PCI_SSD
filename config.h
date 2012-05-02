@@ -36,7 +36,7 @@
 // Set options here
 
 // Enable debugging output.
-#define DEBUG 1
+#define DEBUG 0
 
 // Define clock ratio.
 // This means the update_internal will be called INTERNAL_CLOCK times
@@ -55,6 +55,10 @@
 #define HYBRIDSIM_CLOCK_1 2
 #define HYBRIDSIM_CLOCK_2 3
 
+// Define HybridSim ini file.
+#define HYBRIDSIM_INI "../HybridSim/ini/hybridsim.ini"
+//#define HYBRIDSIM_INI "hybridsim.ini"
+
 
 // Define interface speeds in bytes per second
 #define SATA2 300000000 // SATA 2.0 (300 MB/s, 375 MB/s without PHY overhead) (Also can use this for SAS)
@@ -71,7 +75,7 @@
 // Specify the number of lanes in each layer.
 // This only applies to PCI buses (or if you want to simulate multiple SATA buses). Otherwise it should be 1.
 // Valid lane counts are 1, 2, 4, 8, or 16.
-#define LAYER1_LANES 1
+#define LAYER1_LANES 16
 #define LAYER2_LANES 1
 
 // Specify whether layers should use half duplex (0) or full duplex (1).
