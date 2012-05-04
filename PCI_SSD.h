@@ -42,7 +42,7 @@ namespace PCISSD
 		public:
 		PCI_SSD_System(uint id);
 		~PCI_SSD_System();
-		bool addTransaction(bool isWrite, uint64_t addr);
+		bool addTransaction(bool isWrite, uint64_t addr, int num_sectors);
 		bool WillAcceptTransaction();
 		void update();
 		void RegisterCallbacks(TransactionCompleteCB *readDone, TransactionCompleteCB *writeDone);

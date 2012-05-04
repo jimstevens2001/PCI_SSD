@@ -43,7 +43,7 @@ namespace PCISSD
 		public:
 		PCI_SSD_System(uint id);
 		~PCI_SSD_System();
-		bool addTransaction(bool isWrite, uint64_t addr);
+		bool addTransaction(bool isWrite, uint64_t addr, int num_sectors);
 		bool WillAcceptTransaction();
 		void update();
 		void RegisterCallbacks(TransactionCompleteCB *readDone, TransactionCompleteCB *writeDone);
@@ -87,6 +87,7 @@ namespace PCISSD
 		// State to save while HybridSim is doing its thing.
 		unordered_map<uint64_t, Transaction> hybridsim_transactions; // Outstanding sector transactions.
 		unordered_map<uint64_t, set<uint64_t>> hybridsim_accesses; // Outstanding acceses to HybridSim for each sector.
+		unordered_map<uint64_t, uint64_t> hybridsim_base_address; // Base address for an outstanding access.
 
 		set<uint64_t> pending_sectors; // Simple rule: only one instance of each address at a time, otherwise, this is an error.
 

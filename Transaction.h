@@ -42,14 +42,16 @@ namespace PCISSD
 		bool isWrite;
 		uint64_t addr;
 		uint64_t orig_addr;
+		int num_sectors;
 
 		Transaction() {}
 
-		Transaction(bool w, uint64_t a, uint64_t o)
+		Transaction(bool w, uint64_t a, uint64_t o, int n)
 		{
 			isWrite = w;
 			addr = a;
 			orig_addr = o;
+			num_sectors = n;
 		}
 	};
 

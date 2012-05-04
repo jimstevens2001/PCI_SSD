@@ -89,12 +89,24 @@ namespace PCISSD
 	}
 
 
-	bool PCI_SSD_System::addTransaction(bool isWrite, uint64_t addr)
+	bool PCI_SSD_System::addTransaction(bool isWrite, uint64_t addr, int num_sectors)
 	{
-		// Make sure this sector isn't already being processed.
+		// Make sure I know the range of the number of sectors being transferred.
+		assert(num_sectors >= MIN_SECTORS);	
+		assert(num_sectors <= MAX_SECTORS);
+
+		// Make sure any sectors in this transaction aren't already being processed.
 		// This is just going to fail an assert for now. I can fix it later if we ever have a user doing this.
-		uint64_t aligned_sector_addr = SECTOR_ALIGN(addr);
-		assert(pending_sectors.count(aligned_sector_addr) == 0);
+		uint64_t aligned_sector_addr = SECTOR_ALIGN(addr); 
+		for (uint64_t i=0; i < (uint64_t)num_sectors; i++)
+		{
+			// Insert each sector in this transaction into the pending_sectors set.
+			uint64_t cur_sector = aligned_sector_addr + i * SECTOR_SIZE;
+			assert(pending_sectors.count(cur_sector) == 0);
+			pending_sectors.insert(cur_sector);
+			assert(pending_sectors.count(cur_sector) == 1);
+		}
+
 
 		if (DEBUG)
 		{
@@ -106,12 +118,9 @@ namespace PCISSD
 			}
 		}
 
-		// Insert this sector into the pending_sectors set.
-		pending_sectors.insert(aligned_sector_addr);
-		assert(pending_sectors.count(aligned_sector_addr) == 1);
 
 		// Create the transaction and place it in the Layer 1 Send Queue.
-		Transaction t(isWrite, aligned_sector_addr, addr);
+		Transaction t(isWrite, aligned_sector_addr, addr, num_sectors);
 		layer1->Add_Send_Transaction(t);
 
 		return true;
@@ -259,9 +268,15 @@ namespace PCISSD
 
 		// Remove from the pending_sectors set.
 		uint64_t aligned_sector_addr = SECTOR_ALIGN(e.trans.addr);
-		assert(pending_sectors.count(aligned_sector_addr) == 1);
-		pending_sectors.erase(aligned_sector_addr);
-		assert(pending_sectors.count(aligned_sector_addr) == 0);
+		assert(aligned_sector_addr == e.trans.addr); // Just confirm that the address was aligned.
+		for (uint64_t i=0; i < (uint64_t)e.trans.num_sectors; i++)
+		{
+			// Remove from the pending_sectors set.
+			uint64_t cur_sector = aligned_sector_addr + i * SECTOR_SIZE;
+			assert(pending_sectors.count(cur_sector) == 1);
+			pending_sectors.erase(cur_sector);
+			assert(pending_sectors.count(cur_sector) == 0);
+		}
 
 		// Issue the external callback.
 		// Use the orig_addr since this is the unaligned original address that the caller expects.
@@ -293,7 +308,10 @@ namespace PCISSD
 	void PCI_SSD_System::handle_hybridsim_callback(bool isWrite, uint64_t addr)
 	{
 		// Compute the base address.
-		uint64_t base_address = SECTOR_ALIGN(addr);
+		assert(hybridsim_base_address.count(addr) == 1);
+		uint64_t base_address = hybridsim_base_address[addr];
+		hybridsim_base_address.erase(addr);
+		assert(hybridsim_base_address.count(addr) == 0);
 
 		// Check that this address is in the pending state for HybridSim.
 		assert(hybridsim_transactions.count(base_address) == 1);
@@ -321,7 +339,7 @@ namespace PCISSD
 			// Create a Transaction for the return path.
 			// Not reusing old_t since it should be deleted by the pending state cleanup.
 			// The only thing I need from old_t is the orig_addr (which is the address before SECTOR_ALIGN()).
-			Transaction t(isWrite, base_address, old_t.orig_addr);
+			Transaction t(isWrite, base_address, old_t.orig_addr, old_t.num_sectors);
 
 			// Remove the pending state.
 			hybridsim_transactions.erase(base_address);
@@ -345,7 +363,7 @@ namespace PCISSD
 
 	void PCI_SSD_System::handle_hybridsim_add_transaction(Transaction t)
 	{
-		// This code sends out HYBRIDSIM_TRANSACTIONS transactions for each sector,
+		// This code sends out HYBRIDSIM_TRANSACTIONS(num_sectors) transactions for each sector,
 		// since HybridSim transactions are at a smaller granularity than a sector.
 		// The base address for all transactions is the aligned sector address.
 		uint64_t base_address = t.addr;
@@ -363,11 +381,22 @@ namespace PCISSD
 		assert(hybridsim_accesses.count(base_address) == 1);
 
 
-		// Add HYBRIDSIM_TRANSACTIONS transactions to HybridSim.
-		for (uint64_t i = 0; i < HYBRIDSIM_TRANSACTIONS; i++)
+		// Add HYBRIDSIM_TRANSACTIONS(num_sectors) transactions to HybridSim.
+		for (uint64_t i = 0; i < (uint64_t)HYBRIDSIM_TRANSACTIONS(t.num_sectors); i++)
 		{
 			uint64_t cur_address = base_address + i * HYBRIDSIM_TRANSACTION_SIZE;
+
+			// Save this access in the access list for this base address.
 			hybridsim_accesses[base_address].insert(cur_address);
+
+			// Save the mapping from this access to the current base address.
+			// This is necessary because of the variable sized transactions do not allow for an easy
+			// way to compute the base address from the access address.
+			assert(hybridsim_base_address.count(cur_address) == 0);
+			hybridsim_base_address[cur_address] = base_address;
+			assert(hybridsim_base_address.count(cur_address) == 1);
+
+			// Send this transaction to HybridSim.
 			bool success = hybridsim->addTransaction(t.isWrite, cur_address);
 			assert(success); // HybridSim::addTransaction should never fail since it just returns true. :)
 		}
@@ -375,7 +404,7 @@ namespace PCISSD
 
 		if (DEBUG)
 		{
-			debug_file << currentClockCycle << " : Added " << HYBRIDSIM_TRANSACTIONS << " to HybridSim for base address " << base_address << "\n";
+			debug_file << currentClockCycle << " : Added " << HYBRIDSIM_TRANSACTIONS(t.num_sectors) << " to HybridSim for base address " << base_address << "\n";
 			debug_file.flush();
 		}
 	}

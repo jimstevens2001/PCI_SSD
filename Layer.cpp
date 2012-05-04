@@ -99,6 +99,7 @@ namespace PCISSD
 	{
 		// Add event to the event queue.
 		uint64_t delay = t.isWrite ? write_delay : read_delay;
+		delay = delay * t.num_sectors; 
 		delay = delay / num_lanes;
 		TransactionEvent e (event_type, t, parent->currentClockCycle + delay);
 		parent->Add_Event(e);

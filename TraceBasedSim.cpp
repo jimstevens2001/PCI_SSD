@@ -171,7 +171,7 @@ int PCI_SSD_TBS::run_trace(string tracefile)
 		}
 
 		// add the transaction and continue
-		mem->addTransaction(write, addr);
+		mem->addTransaction(write, addr, 1);
 		pending++;
 
 		// If the pending count goes above MAX_PENDING, wait until it goes back below MIN_PENDING before adding more 

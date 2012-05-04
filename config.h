@@ -101,6 +101,9 @@
 #define SECTOR_SIZE 512
 #define HYBRIDSIM_TRANSACTION_SIZE 64
 
+// Specify the range on the number of sectors allowed in one transaction.
+#define MIN_SECTORS 1 	
+#define MAX_SECTORS 256
 
 // Specify command size for layers.
 #define COMMAND_SIZE 16
@@ -117,7 +120,7 @@
 #define LAYER2_DATA_DELAY compute_interface_delay(COMMAND_SIZE + SECTOR_SIZE, LAYER2_TYPE, PROTOCOL_EFFICIENCY)
 
 // Other Derived Parameters
-#define HYBRIDSIM_TRANSACTIONS (SECTOR_SIZE / HYBRIDSIM_TRANSACTION_SIZE)
+#define HYBRIDSIM_TRANSACTIONS(ns) ((ns*SECTOR_SIZE) / HYBRIDSIM_TRANSACTION_SIZE)
 #define SECTOR_ALIGN(addr) ((addr / SECTOR_SIZE) * SECTOR_SIZE)
 
 
