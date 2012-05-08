@@ -47,6 +47,12 @@ namespace PCISSD
 		void update();
 		void RegisterCallbacks(TransactionCompleteCB *readDone, TransactionCompleteCB *writeDone);
 		void printLogfile();
+
+		// DMA functions
+		void RegisterDMACallback(DMATransactionCB *add_dma, uint64_t mem_size);
+		bool isDMATransaction(uint64_t addr);
+		void CompleteDMATransaction(bool isWrite, uint64_t addr);
+		void AddDMAScatterGatherEntry(uint64_t addr, uint64_t length);
 	};
 
 	PCI_SSD_System *getInstance(uint id);

@@ -49,6 +49,12 @@ namespace PCISSD
 		void RegisterCallbacks(TransactionCompleteCB *readDone, TransactionCompleteCB *writeDone);
 		void printLogfile();
 
+		// DMA functions
+		void RegisterDMACallback(DMATransactionCB *add_dma, uint64_t mem_size);
+		bool isDMATransaction(uint64_t addr);
+		void CompleteDMATransaction(bool isWrite, uint64_t addr);
+		void AddDMAScatterGatherEntry(uint64_t addr, uint64_t length);
+
 		// Internal functions
 		void HybridSim_Read_Callback(uint id, uint64_t addr, uint64_t cycle);
 		void HybridSim_Write_Callback(uint id, uint64_t addr, uint64_t cycle);
@@ -71,6 +77,10 @@ namespace PCISSD
 		void handle_hybridsim_callback(bool isWrite, uint64_t addr);
 
 		void issue_external_callback(bool isWrite, uint64_t orig_addr);
+
+		// Internal DMA functions
+		void PerformDMA(Transaction t);
+		void FinishDMA(Transaction t);
 
 
 		// Internal state
@@ -98,6 +108,25 @@ namespace PCISSD
 		Layer *layer2;
 
 		ofstream debug_file;
+
+
+		// DMA state.
+
+		// Callback to add a single DMA transaction to DRAMSim2.
+		DMATransactionCB *add_dma;
+		uint64_t dma_memory_size;
+
+		unordered_map<uint64_t, Transaction> dma_transactions; // Outstanding DMA transactions.
+		unordered_map<uint64_t, set<uint64_t>> dma_accesses; // Outstanding accesses to DRAMSim2 for each DMA transaction.
+		unordered_map<uint64_t, uint64_t> dma_base_address; // Base addresses for each outstanding DRAMSim2 access.
+
+		// DMA SG list (used to allow non-contiguous accesses to DRAMSim2).
+		// First item in pair is address, second item is length.
+		// This will be cleared with each call to addTransaction.
+		list<uint64_t> dma_sg_base;
+		list<uint64_t> dma_sg_len;
+		unordered_set<uint64_t> dma_sg_all; // Used to check for duplicate transactions.
+		
 
 	};
 

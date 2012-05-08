@@ -36,6 +36,8 @@ namespace PCISSD
 {
 	PCI_SSD_System::PCI_SSD_System(uint id)
 	{
+		cerr << "PCI_SSD id is " << id << "\n";
+
 		debug_file.open(DEBUG_FILE, ios_base::out | ios_base::trunc);
 		if (!debug_file.is_open())
 		{
@@ -71,6 +73,9 @@ namespace PCISSD
 			debug_file << "Layer 2 delays are (data: " << LAYER2_DATA_DELAY << ", command: " << LAYER2_COMMAND_DELAY << ")\n";
 			debug_file.flush();
 		}
+
+		// Make sure the add_dma callback is NULL before it is registered.
+		add_dma = NULL;
 	}
 
 	PCI_SSD_System::~PCI_SSD_System()
@@ -112,7 +117,13 @@ namespace PCISSD
 		{
 			if (aligned_sector_addr != addr)
 			{
-				debug_file << currentClockCycle << ": Unaligned sector arrived (orig: " << addr 
+				debug_file << currentClockCycle << ": Unaligned sector addTransaction() arrived (orig: " << addr 
+						<< ", aligned: " << aligned_sector_addr << ")\n";
+				debug_file.flush();
+			}
+			else
+			{
+				debug_file << currentClockCycle << ": Sector addTransaction() arrived (orig: " << addr 
 						<< ", aligned: " << aligned_sector_addr << ")\n";
 				debug_file.flush();
 			}
@@ -120,8 +131,23 @@ namespace PCISSD
 
 
 		// Create the transaction and place it in the Layer 1 Send Queue.
-		Transaction t(isWrite, aligned_sector_addr, addr, num_sectors);
-		layer1->Add_Send_Transaction(t);
+		Transaction t(isWrite, aligned_sector_addr, addr, num_sectors, dma_sg_base, dma_sg_len);
+		//Transaction t(isWrite, aligned_sector_addr, addr, num_sectors);
+
+		// Clear the scatter gather list for the next transaction.
+		dma_sg_base.clear();
+		dma_sg_len.clear();
+		dma_sg_all.clear();
+
+		// TODO: Check for DMA for write transaction.
+		if ((ENABLE_DMA) && (isWrite))
+		{
+			PerformDMA(t);
+		}
+		else
+		{
+			layer1->Add_Send_Transaction(t);
+		}
 
 		return true;
 	}
@@ -145,6 +171,130 @@ namespace PCISSD
 		hybridsim->printLogfile();
 	}
 
+	// DMA functions
+	void PCI_SSD_System::RegisterDMACallback(DMATransactionCB *add_dma, uint64_t mem_size)
+	{
+		this->add_dma = add_dma;
+		this->dma_memory_size = mem_size;
+
+		if (DEBUG)
+		{
+			debug_file << currentClockCycle << " : RegisterDMACallback called. Memory size is " << this->dma_memory_size << "\n";
+			debug_file.flush();
+		}
+	}
+
+
+	bool PCI_SSD_System::isDMATransaction(uint64_t addr)
+	{
+		assert((dma_base_address.count(addr) == 0) || (dma_base_address.count(addr) == 1));
+		return (dma_base_address.count(addr) == 1);
+	}
+
+	void PCI_SSD_System::CompleteDMATransaction(bool isWrite, uint64_t addr)
+	{
+		// Get the base address for this DRAMSim2 transaction.
+		assert(dma_base_address.count(addr) == 1);
+		uint64_t base_address = dma_base_address[addr];
+
+		// Remove the base address entry.
+		dma_base_address.erase(addr);
+		assert(dma_base_address.count(addr) == 0);
+
+		// Remove the access from dma_accesses.
+		assert(dma_accesses[base_address].count(addr) == 1);
+		dma_accesses[base_address].erase(addr);
+
+		if (dma_accesses[base_address].empty())
+		{
+			// Get the transaction
+			Transaction old_t = dma_transactions[base_address];
+			assert(isWrite == !old_t.isWrite); // DMA type should be the opposite of the SSD access type.
+			assert(base_address == old_t.addr);
+
+			// Create a Transaction for the finishDMA call.
+			// Not reusing old_t since it should be deleted by the pending state cleanup.
+			//Transaction t(old_t.isWrite, base_address, old_t.orig_addr, old_t.num_sectors, old_t.dma_sg_base, old_t.dma_sg_len);
+			//Transaction t(isWrite, base_address, old_t.orig_addr, old_t.num_sectors);
+			Transaction t = old_t; // Make a deep copy.
+
+			// Remove the pending state.
+			dma_transactions.erase(base_address);
+			dma_accesses.erase(base_address);
+			
+			// Check that the pending state is cleared.
+			assert(dma_transactions.count(base_address) == 0);
+			assert(dma_accesses.count(base_address) == 0);
+
+			// Call finishDMA to complete this DMA transaction.
+			FinishDMA(t);
+		}
+	}
+
+
+	void PCI_SSD_System::AddDMAScatterGatherEntry(uint64_t addr, uint64_t length)
+	{
+		if (DEBUG)
+		{
+			debug_file << currentClockCycle << " : Received new scatter gather entry (" << addr << ", " << length << ")\n";
+			debug_file.flush();
+		}
+
+		// Check rules for addr and length before putting them in the sg state.
+		string fail_reason;
+		if (addr >= dma_memory_size)
+		{
+			fail_reason = "addr is out of memory bounds";
+			goto sg_error;
+		}
+		else if (length > MAX_SECTORS * SECTOR_SIZE)
+		{
+			fail_reason = "length exceeds MAX_SECTORS * SECTOR_SIZE";
+			goto sg_error;
+		}
+		else if (addr != DRAMSIM_ALIGN(addr))
+		{
+			fail_reason = "addr is not aligned to DRAMSIM_TRANSACTION_SIZE";
+			goto sg_error;
+		}
+		else if (length != DRAMSIM_ALIGN(length))
+		{
+			fail_reason = "length is not aligned to DRAMSIM_TRANSACTION_SIZE";
+			goto sg_error;
+		}
+		else
+		{
+			// Generate all DRAMSim transaction addresses for this SG entry.
+			for (uint64_t i=0; i<length/DRAMSIM_TRANSACTION_SIZE; i++)
+			{
+				uint64_t cur_addr = addr + i * DRAMSIM_TRANSACTION_SIZE;
+
+				// Check to see if this address is already in this particular DMA transaction.
+				if (dma_sg_all.count(cur_addr) != 0)
+				{
+					fail_reason = "Duplicate DRAMSim address found in dma_sg_all";
+					goto sg_error;
+				}
+
+				dma_sg_all.insert(cur_addr);
+			}
+
+			// Passed all rule checks.
+			dma_sg_base.push_back(addr);
+			dma_sg_len.push_back(length);
+			return;
+		}
+
+		sg_error:
+		if (DEBUG)
+		{
+			debug_file << currentClockCycle << " : Dropping invalid SG entry. Reason: " << fail_reason << "\n";
+			debug_file.flush();
+		}
+	}
+
+
+	// Internal functions
 	void PCI_SSD_System::HybridSim_Read_Callback(uint id, uint64_t addr, uint64_t cycle)
 	{
 		handle_hybridsim_callback(false, addr);
@@ -278,10 +428,17 @@ namespace PCISSD
 			assert(pending_sectors.count(cur_sector) == 0);
 		}
 
-		// Issue the external callback.
-		// Use the orig_addr since this is the unaligned original address that the caller expects.
-		issue_external_callback(e.trans.isWrite, e.trans.orig_addr);
-
+		// Check for DMA Write for SSD reads.
+		if ((ENABLE_DMA) && (!e.trans.isWrite))
+		{
+			PerformDMA(e.trans);
+		}
+		else
+		{
+			// Issue the external callback.
+			// Use the orig_addr since this is the unaligned original address that the caller expects.
+			issue_external_callback(e.trans.isWrite, e.trans.orig_addr);
+		}
 	}
 
 
@@ -339,7 +496,9 @@ namespace PCISSD
 			// Create a Transaction for the return path.
 			// Not reusing old_t since it should be deleted by the pending state cleanup.
 			// The only thing I need from old_t is the orig_addr (which is the address before SECTOR_ALIGN()).
-			Transaction t(isWrite, base_address, old_t.orig_addr, old_t.num_sectors);
+			//Transaction t(isWrite, base_address, old_t.orig_addr, old_t.num_sectors, old_t.dma_sg_base, old_t.dma_sg_len);
+			//Transaction t(isWrite, base_address, old_t.orig_addr, old_t.num_sectors);
+			Transaction t = old_t; // Make a deep copy.
 
 			// Remove the pending state.
 			hybridsim_transactions.erase(base_address);
@@ -419,6 +578,75 @@ namespace PCISSD
 		if (cb != NULL)
 			(*cb)(systemID, orig_addr, currentClockCycle);
 	}
+
+	void PCI_SSD_System::PerformDMA(Transaction t)
+	{
+		assert(add_dma != NULL);
+
+		// Make sure there is a DMA to perform.
+		// If not, then just go straight to FinishDMA.
+		if (dma_sg_base.size() == 0)
+			FinishDMA(t);
+
+		// Save this transaction in the dma_transactions map
+		assert(dma_transactions.count(t.addr) == 0);
+		dma_transactions[t.addr] = t;
+		assert(dma_transactions.count(t.addr) == 1);
+
+		// Create the pending set for dma_accesses for this base address.
+		assert(dma_accesses.count(t.addr) == 0);
+		dma_accesses[t.addr] = set<uint64_t>();
+		assert(dma_accesses.count(t.addr) == 1);
+
+		// Generate all of the necessary DRAMSim transactions.
+		list<uint64_t>::iterator cur_base = t.dma_sg_base.begin();
+		list<uint64_t>::iterator cur_len = t.dma_sg_len.begin();
+		while (cur_base != t.dma_sg_base.end())
+		{
+			for (uint64_t offset=0; offset < (*cur_len); offset += DRAMSIM_TRANSACTION_SIZE)
+			{
+				uint64_t cur_addr = (*cur_base) + offset;
+				bool isWrite = !t.isWrite; // DMA read for SSD write and DMA write for SSD read.
+				(*add_dma)(isWrite, cur_addr, 0); // Send the transaction to DRAMSim via the add_dma callback.
+
+				// Save this access in the dma_accesses pending map.
+				assert(dma_accesses[t.addr].count(cur_addr) == 0);
+				dma_accesses[t.addr].insert(cur_addr);
+				assert(dma_accesses[t.addr].count(cur_addr) == 1);
+
+				// Save the base address for this access.
+				assert(dma_base_address.count(cur_addr) == 0);
+				dma_base_address[cur_addr] = t.addr;
+				assert(dma_base_address.count(cur_addr) == 1);
+			}
+
+			// Increment the iterators.
+			cur_base++;
+			cur_len++;
+		}
+	}
+
+	void PCI_SSD_System::FinishDMA(Transaction t)
+	{
+		if (t.isWrite)
+		{
+			// For an SSD write, we perform a DMA read.
+			// After the DMA read completes, it is time to send the transaction across the host
+			// interface and down to the disk.
+			layer1->Add_Send_Transaction(t);
+		}
+		else
+		{
+			// For an SSD read, we perform a DMA write.
+			// After the DMA write completes, the whole SSD transaction is finished.
+
+			// Issue the external callback.
+			// Use the orig_addr since this is the unaligned original address that the caller expects.
+			issue_external_callback(t.isWrite, t.orig_addr);
+
+		}
+	}
+
 
 	// static allocator for the library interface
 	PCI_SSD_System *getInstance(uint id)

@@ -71,6 +71,7 @@ namespace PCISSD
 	};
 
 	typedef CallbackBase <void, uint, uint64_t, uint64_t> TransactionCompleteCB;
+	typedef CallbackBase <void, uint, uint64_t, uint64_t> DMATransactionCB;
 
 } 
 

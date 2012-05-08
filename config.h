@@ -88,6 +88,11 @@
 #define LAYER2_FULL_DUPLEX 0
 
 
+// Specify whether direct memory access should be simulated.
+// If this is 0, the direct memory access parts will simply be skipped.
+#define ENABLE_DMA 1
+
+
 ////////////////////////////////////////////////////////////////////
 // Parameters below this point should never change.
 
@@ -100,6 +105,7 @@
 // These should never change since QEMU's IDE interface assumes 512 and HybridSim assumes 64.
 #define SECTOR_SIZE 512
 #define HYBRIDSIM_TRANSACTION_SIZE 64
+#define DRAMSIM_TRANSACTION_SIZE 64
 
 // Specify the range on the number of sectors allowed in one transaction.
 #define MIN_SECTORS 1 	
@@ -122,6 +128,7 @@
 // Other Derived Parameters
 #define HYBRIDSIM_TRANSACTIONS(ns) ((ns*SECTOR_SIZE) / HYBRIDSIM_TRANSACTION_SIZE)
 #define SECTOR_ALIGN(addr) ((addr / SECTOR_SIZE) * SECTOR_SIZE)
+#define DRAMSIM_ALIGN(addr) ((addr / DRAMSIM_TRANSACTION_SIZE) * DRAMSIM_TRANSACTION_SIZE)
 
 
 #endif

@@ -43,15 +43,20 @@ namespace PCISSD
 		uint64_t addr;
 		uint64_t orig_addr;
 		int num_sectors;
+		list<uint64_t> dma_sg_base; // scatter gather list
+		list<uint64_t> dma_sg_len;
 
 		Transaction() {}
 
-		Transaction(bool w, uint64_t a, uint64_t o, int n)
+		Transaction(bool w, uint64_t a, uint64_t o, int n, list<uint64_t> b, list<uint64_t> l)
+		//Transaction(bool w, uint64_t a, uint64_t o, int n)
 		{
 			isWrite = w;
 			addr = a;
 			orig_addr = o;
 			num_sectors = n;
+			dma_sg_base = b;
+			dma_sg_len = l;
 		}
 	};
 
