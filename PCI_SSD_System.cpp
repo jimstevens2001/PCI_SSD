@@ -208,13 +208,16 @@ namespace PCISSD
 		// Remove the access from dma_accesses.
 		assert(dma_accesses[base_address].count(addr) == 1);
 		dma_accesses[base_address].erase(addr);
+		assert(dma_accesses[base_address].count(addr) == 0);
+
+		// Get the transaction
+		assert(dma_transactions.count(base_address) == 1);
+		Transaction old_t = dma_transactions[base_address];
+		assert(isWrite == !old_t.isWrite); // DMA type should be the opposite of the SSD access type.
+		assert(base_address == old_t.addr);
 
 		if (dma_accesses[base_address].empty())
 		{
-			// Get the transaction
-			Transaction old_t = dma_transactions[base_address];
-			assert(isWrite == !old_t.isWrite); // DMA type should be the opposite of the SSD access type.
-			assert(base_address == old_t.addr);
 
 			// Create a Transaction for the finishDMA call.
 			// Not reusing old_t since it should be deleted by the pending state cleanup.
@@ -222,13 +225,14 @@ namespace PCISSD
 			//Transaction t(isWrite, base_address, old_t.orig_addr, old_t.num_sectors);
 			Transaction t = old_t; // Make a deep copy.
 
-			// Remove the pending state.
+			// Remove the Transaction for this base address. 
 			dma_transactions.erase(base_address);
-			dma_accesses.erase(base_address);
-			
-			// Check that the pending state is cleared.
 			assert(dma_transactions.count(base_address) == 0);
+
+			// Remove the access pending list for this base address.
+			dma_accesses.erase(base_address);
 			assert(dma_accesses.count(base_address) == 0);
+			
 
 			// Call finishDMA to complete this DMA transaction.
 			FinishDMA(t);
@@ -468,6 +472,12 @@ namespace PCISSD
 
 	void PCI_SSD_System::handle_hybridsim_callback(bool isWrite, uint64_t addr)
 	{
+		if (DEBUG)
+		{
+			debug_file << currentClockCycle << " : Received callback from HybridSim (" << isWrite << ", " << addr << ")\n";
+			debug_file.flush();
+		}
+
 		// Compute the base address.
 		assert(hybridsim_base_address.count(addr) == 1);
 		uint64_t base_address = hybridsim_base_address[addr];
@@ -488,15 +498,16 @@ namespace PCISSD
 		hybridsim_accesses[base_address].erase(addr);
 		assert(hybridsim_accesses[base_address].count(addr) == 0);
 
-		if (DEBUG)
-		{
-			debug_file << currentClockCycle << " : Received callback from HybridSim (" << isWrite << ", " << addr << ")\n";
-			debug_file.flush();
-		}
 		
 		// If the whole sector transaction is done, then send it back up.
 		if (hybridsim_accesses[base_address].empty())
 		{
+			if (DEBUG)
+			{
+				debug_file << currentClockCycle << " : Finished HybridSim transactions for base address " << base_address << "\n";
+				debug_file.flush();
+			}
+
 			// Create a Transaction for the return path.
 			// Not reusing old_t since it should be deleted by the pending state cleanup.
 			// The only thing I need from old_t is the orig_addr (which is the address before SECTOR_ALIGN()).
@@ -511,12 +522,6 @@ namespace PCISSD
 			// Check that the pending state is cleared.
 			assert(hybridsim_transactions.count(base_address) == 0);
 			assert(hybridsim_accesses.count(base_address) == 0);
-
-			if (DEBUG)
-			{
-				debug_file << currentClockCycle << " : Finished HybridSim transactions for base address " << base_address << "\n";
-				debug_file.flush();
-			}
 
 			// Put transaction in appropriate return queue.
 			layer2->Add_Return_Transaction(t);
@@ -591,8 +596,6 @@ namespace PCISSD
 
 	void PCI_SSD_System::PerformDMA(Transaction t)
 	{
-		assert(add_dma != NULL);
-
 		if (DEBUG)
 		{
 			debug_file << currentClockCycle << ": Starting DMA transaction for " << t.addr << "\n";
@@ -610,7 +613,10 @@ namespace PCISSD
 				debug_file.flush();
 			}
 			FinishDMA(t);
+			return; // MUST RETURN SO WE DON'T EXECUTE THE REST OF THIS CODE!
 		}
+
+		assert(add_dma != NULL);
 
 		// Save this transaction in the dma_transactions map
 		assert(dma_transactions.count(t.addr) == 0);
@@ -627,6 +633,13 @@ namespace PCISSD
 		list<uint64_t>::iterator cur_len = t.dma_sg_len.begin();
 		while (cur_base != t.dma_sg_base.end())
 		{
+			if (DEBUG)
+			{
+				debug_file << currentClockCycle << ": Sending " << ((*cur_len) / DRAMSIM_TRANSACTION_SIZE)
+						<< " SG entry transactions to DRAMSim2 (base: " << (*cur_base) << ", " << (*cur_len) << ")\n";
+				debug_file.flush();
+			}
+
 			for (uint64_t offset=0; offset < (*cur_len); offset += DRAMSIM_TRANSACTION_SIZE)
 			{
 				uint64_t cur_addr = (*cur_base) + offset;
@@ -642,13 +655,6 @@ namespace PCISSD
 				assert(dma_base_address.count(cur_addr) == 0);
 				dma_base_address[cur_addr] = t.addr;
 				assert(dma_base_address.count(cur_addr) == 1);
-			}
-
-			if (DEBUG)
-			{
-				debug_file << currentClockCycle << ": Sent " << ((*cur_len) / DRAMSIM_TRANSACTION_SIZE)
-						<< " SG entry transactions to DRAMSim2 (base: " << (*cur_base) << ", " << (*cur_len) << ")\n";
-				debug_file.flush();
 			}
 
 			// Increment the iterators.
