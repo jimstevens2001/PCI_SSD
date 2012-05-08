@@ -115,15 +115,13 @@ namespace PCISSD
 
 		if (DEBUG)
 		{
+			debug_file << currentClockCycle << ": Sector addTransaction() arrived (isWrite: " << isWrite 
+					<< ", addr: " << addr << ", num_sectors: " << num_sectors << ")\n";
+			debug_file.flush();
+
 			if (aligned_sector_addr != addr)
 			{
-				debug_file << currentClockCycle << ": Unaligned sector addTransaction() arrived (orig: " << addr 
-						<< ", aligned: " << aligned_sector_addr << ")\n";
-				debug_file.flush();
-			}
-			else
-			{
-				debug_file << currentClockCycle << ": Sector addTransaction() arrived (orig: " << addr 
+				debug_file << currentClockCycle << ": Unaligned sector (orig: " << addr 
 						<< ", aligned: " << aligned_sector_addr << ")\n";
 				debug_file.flush();
 			}
@@ -139,7 +137,7 @@ namespace PCISSD
 		dma_sg_len.clear();
 		dma_sg_all.clear();
 
-		// TODO: Check for DMA for write transaction.
+		// Check for DMA for write transaction.
 		if ((ENABLE_DMA) && (isWrite))
 		{
 			PerformDMA(t);
@@ -193,6 +191,12 @@ namespace PCISSD
 
 	void PCI_SSD_System::CompleteDMATransaction(bool isWrite, uint64_t addr)
 	{
+		if (DEBUG)
+		{
+			debug_file << currentClockCycle << ": Completed DRAMSim2 DMA transaction for (" << isWrite << ", " << addr << ")\n";
+			debug_file.flush();
+		}
+
 		// Get the base address for this DRAMSim2 transaction.
 		assert(dma_base_address.count(addr) == 1);
 		uint64_t base_address = dma_base_address[addr];
@@ -571,6 +575,12 @@ namespace PCISSD
 
 	void PCI_SSD_System::issue_external_callback(bool isWrite, uint64_t orig_addr)
 	{
+		if (DEBUG)
+		{
+			debug_file << currentClockCycle << " : Issuing external callback for transaction (" << isWrite << ", " << orig_addr << ")\n";
+			debug_file.flush();
+		}
+
 		// Select the appropriate callback method pointer.
 		TransactionCompleteCB *cb = isWrite ? WriteDone : ReadDone;
 
@@ -583,10 +593,24 @@ namespace PCISSD
 	{
 		assert(add_dma != NULL);
 
+		if (DEBUG)
+		{
+			debug_file << currentClockCycle << ": Starting DMA transaction for " << t.addr << "\n";
+			debug_file << "DMA type is " << t.isWrite << " (1 => SSD Write/DMA Read and 0 => SSD Read/DMA Write)\n";
+			debug_file.flush();
+		}
+
 		// Make sure there is a DMA to perform.
 		// If not, then just go straight to FinishDMA.
-		if (dma_sg_base.size() == 0)
+		if (t.dma_sg_base.size() == 0)
+		{
+			if (DEBUG)
+			{
+				debug_file << currentClockCycle << ": No SG entries to process so skipping directly to FinishDMA().\n";
+				debug_file.flush();
+			}
 			FinishDMA(t);
+		}
 
 		// Save this transaction in the dma_transactions map
 		assert(dma_transactions.count(t.addr) == 0);
@@ -620,6 +644,13 @@ namespace PCISSD
 				assert(dma_base_address.count(cur_addr) == 1);
 			}
 
+			if (DEBUG)
+			{
+				debug_file << currentClockCycle << ": Sent " << ((*cur_len) / DRAMSIM_TRANSACTION_SIZE)
+						<< " SG entry transactions to DRAMSim2 (base: " << (*cur_base) << ", " << (*cur_len) << ")\n";
+				debug_file.flush();
+			}
+
 			// Increment the iterators.
 			cur_base++;
 			cur_len++;
@@ -628,6 +659,13 @@ namespace PCISSD
 
 	void PCI_SSD_System::FinishDMA(Transaction t)
 	{
+		if (DEBUG)
+		{
+			debug_file << currentClockCycle << ": Finishing DMA transaction for " << t.addr << "\n";
+			debug_file << "DMA type is " << t.isWrite << " (1 => SSD Write/DMA Read and 0 => SSD Read/DMA Write)\n";
+			debug_file.flush();
+		}
+
 		if (t.isWrite)
 		{
 			// For an SSD write, we perform a DMA read.
@@ -643,7 +681,6 @@ namespace PCISSD
 			// Issue the external callback.
 			// Use the orig_addr since this is the unaligned original address that the caller expects.
 			issue_external_callback(t.isWrite, t.orig_addr);
-
 		}
 	}
 
