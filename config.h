@@ -108,8 +108,8 @@
 #define DRAMSIM_TRANSACTION_SIZE 64
 
 // Specify the range on the number of sectors allowed in one transaction.
-#define MIN_SECTORS 1 	
-#define MAX_SECTORS 256
+#define MIN_SECTORS 1 	// 512 bytes
+#define MAX_SECTORS 2048 // 1 MB
 
 // Specify command size for layers.
 #define COMMAND_SIZE 16
