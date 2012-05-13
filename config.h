@@ -92,6 +92,11 @@
 // If this is 0, the direct memory access parts will simply be skipped.
 #define ENABLE_DMA 1
 
+// Specify the maximum number of pending DMA requests that can be
+// send to DRAMSim at once. If there are more transactions than this,
+// they will be queued up in PCI_SSD's dma_queue.
+#define MAX_PENDING_DMA 64
+
 
 ////////////////////////////////////////////////////////////////////
 // Parameters below this point should never change.

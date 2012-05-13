@@ -81,6 +81,7 @@ namespace PCISSD
 		// Internal DMA functions
 		void PerformDMA(Transaction t);
 		void FinishDMA(Transaction t);
+		void UpdateDMA();
 
 
 		// Internal state
@@ -126,6 +127,9 @@ namespace PCISSD
 		list<uint64_t> dma_sg_base;
 		list<uint64_t> dma_sg_len;
 		unordered_set<uint64_t> dma_sg_all; // Used to check for duplicate transactions.
+
+		list<pair<bool, uint64_t>> dma_queue;
+		uint64_t dma_outstanding;
 		
 
 	};

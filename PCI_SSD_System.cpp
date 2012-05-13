@@ -197,6 +197,10 @@ namespace PCISSD
 			debug_file.flush();
 		}
 
+		// Decrement the dma_outstanding count.
+		assert(dma_outstanding > 0);
+		dma_outstanding--;
+
 		// Get the base address for this DRAMSim2 transaction.
 		assert(dma_base_address.count(addr) == 1);
 		uint64_t base_address = dma_base_address[addr];
@@ -330,6 +334,9 @@ namespace PCISSD
 
 		// Do processing for event queue
 		Process_Event_Queue();
+
+		// Do processing for dma_queue.
+		UpdateDMA();
 
 		// Call update for HybridSim.
 		// This uses a clock domain crosser due to the different clock rates.
@@ -644,7 +651,7 @@ namespace PCISSD
 			{
 				uint64_t cur_addr = (*cur_base) + offset;
 				bool isWrite = !t.isWrite; // DMA read for SSD write and DMA write for SSD read.
-				(*add_dma)(isWrite, cur_addr, 0); // Send the transaction to DRAMSim via the add_dma callback.
+				dma_queue.push_back(make_pair(isWrite, cur_addr)); // The DMA queue is to send transactions to DRAMSim in UpdateDMA().
 
 				// Save this access in the dma_accesses pending map.
 				assert(dma_accesses[t.addr].count(cur_addr) == 0);
@@ -687,6 +694,34 @@ namespace PCISSD
 			// Issue the external callback.
 			// Use the orig_addr since this is the unaligned original address that the caller expects.
 			issue_external_callback(t.isWrite, t.orig_addr);
+		}
+	}
+
+	
+	void PCI_SSD_System::UpdateDMA()
+	{
+		// Only send MAX_DMA_PENDING transactions at once to DRAMSim so as not to overflow the marss 
+		// pending memory request queue (which can happen if marss memory requests are stalled due to 
+		// contention from the DMA requests.
+		if ((dma_outstanding < MAX_PENDING_DMA) && (!dma_queue.empty()))
+		{
+			// Get the DMA request at the front of the dma_queue.
+			pair<bool, uint64_t> cur_dma = dma_queue.front();
+			dma_queue.pop_front();
+			bool isWrite = cur_dma.first;
+			uint64_t cur_addr = cur_dma.second;
+			
+			// Send the DMA request to DRAMSim.
+			(*add_dma)(isWrite, cur_addr, 0); // Send the transaction to DRAMSim via the add_dma callback.
+			dma_outstanding++;
+
+			if (dma_outstanding == MAX_PENDING_DMA)
+			{
+				if (DEBUG)
+				{
+					debug_file << currentClockCycle << ": MAX_PENDING_DMA reached. Throttling DMA to DRAMSim until prior transactions complete.\n";
+				}
+			}
 		}
 	}
 
