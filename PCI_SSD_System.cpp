@@ -183,10 +183,53 @@ namespace PCISSD
 	}
 
 
-	bool PCI_SSD_System::isDMATransaction(uint64_t addr)
+	bool PCI_SSD_System::isDMATransaction(bool isWrite, uint64_t addr, bool done)
 	{
 		assert((dma_base_address.count(addr) == 0) || (dma_base_address.count(addr) == 1));
-		return (dma_base_address.count(addr) == 1);
+
+		if (dma_base_address.count(addr) == 0)
+			return false;
+		else
+		{
+			// Get base address.
+			uint64_t base_address = dma_base_address[addr];
+
+			// Get the transaction.
+			assert(dma_transactions.count(base_address) == 1);
+			Transaction old_t = dma_transactions[base_address];
+			assert(base_address == old_t.addr);
+
+			if (done)
+			{
+				// Log that an address that was already done (meaning that the normal marss memoryController
+				// path handled this address).
+				if (DEBUG)
+				{
+					debug_file << currentClockCycle << " : isDMATransaction called with done=true for a pending DMA transaction ("
+							<< isWrite << ", " << addr << ")\n";
+					debug_file << "old_t write type was " << old_t.isWrite << "\n";
+					debug_file.flush();
+				}
+
+				return false;
+			}
+
+			// DMA type should be the opposite of the SSD access type.
+			if (isWrite == !old_t.isWrite)
+				return true;
+			else
+			{
+				if (DEBUG)
+				{
+					debug_file << currentClockCycle << " : isDMATransaction called with write type that does not match a pending DMA transaction ("
+							<< isWrite << ", " << addr << ")\n";
+					debug_file.flush();
+				}
+				
+				return false;
+			}
+
+		}
 	}
 
 	void PCI_SSD_System::CompleteDMATransaction(bool isWrite, uint64_t addr)

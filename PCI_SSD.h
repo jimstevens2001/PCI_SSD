@@ -50,7 +50,7 @@ namespace PCISSD
 
 		// DMA functions
 		void RegisterDMACallback(DMATransactionCB *add_dma, uint64_t mem_size);
-		bool isDMATransaction(uint64_t addr);
+		bool isDMATransaction(bool isWrite, uint64_t addr, bool done);
 		void CompleteDMATransaction(bool isWrite, uint64_t addr);
 		void AddDMAScatterGatherEntry(uint64_t addr, uint64_t length);
 	};
